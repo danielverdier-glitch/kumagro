@@ -572,8 +572,7 @@ async function guardarTodo() {
     try {
       await fetch(APPS_SCRIPT_URL,{
         method:'POST', mode:'no-cors',
-        body:JSON.stringify({action:'appendRow', data:rowData}),
-        headers:{'Content-Type':'application/json'}
+        body:JSON.stringify({action:'appendRow', data:rowData})
       });
       okSheet++;
     } catch(e){ errores.push('Fila '+lote.id_lote+': '+e.message); }
@@ -590,8 +589,7 @@ async function guardarTodo() {
             folderId: KMZ_FOLDER_ID,
             base64: b64,
             mimeType: 'application/vnd.google-earth.kmz'
-          }),
-          headers:{'Content-Type':'application/json'}
+          })
         });
         okKmz++;
       } catch(e){ errores.push('KMZ '+lote.id_lote+': '+e.message); }
