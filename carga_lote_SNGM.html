@@ -458,14 +458,18 @@ function sanitizarNombreArchivo(nombre) {
     .replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || 'lote';
 }
 
-async function generarKMZDesdePoligono(coords, idLote, nombre) {
+function nombreArchivoLote(productor, nombreCampo, lote) {
+  return [productor, nombreCampo, lote].filter(Boolean).map(sanitizarNombreArchivo).join('_') + '.kmz';
+}
+
+async function generarKMZDesdePoligono(coords, idLote, filename) {
   const coordText = coords.map(p=>`${p[0]},${p[1]},0`).join(' ');
   const kml = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${idLote}</name>
     <Placemark>
-      <name>${nombre}</name>
+      <name>${filename}</name>
       <Polygon>
         <outerBoundaryIs>
           <LinearRing>
@@ -479,7 +483,6 @@ async function generarKMZDesdePoligono(coords, idLote, nombre) {
   const zip = new JSZip();
   zip.file('doc.kml', kml);
   const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.google-earth.kmz'});
-  const filename = `${idLote}_${sanitizarNombreArchivo(nombre)}.kmz`;
   return new File([blob], filename, {type:'application/vnd.google-earth.kmz'});
 }
 
@@ -507,7 +510,10 @@ async function agregarLote() {
   const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
 
   const idLote = 'SNGM-'+Date.now();
-  const kmzFile = currentKmzFile || await generarKMZDesdePoligono(coords, idLote, nombreCampo+(lote?'_'+lote:''));
+  const nombreArchivo = nombreArchivoLote(productor, nombreCampo, lote);
+  const kmzFile = currentKmzFile
+    ? new File([currentKmzFile], nombreArchivo, {type:'application/vnd.google-earth.kmz'})
+    : await generarKMZDesdePoligono(coords, idLote, nombreArchivo);
   const loteObj = {
     id_lote:idLote, productor, nombre_campo:nombreCampo, lote,
     variedad, fecha_siembra_estimada:fechaSiembra, campana,
@@ -617,7 +623,7 @@ async function guardarTodo() {
           method:'POST', mode:'no-cors',
           body:JSON.stringify({
             action:'uploadKmz',
-            filename: lote.id_lote+'_'+lote._kmzFile.name,
+            filename: lote._kmzFile.name,
             folderId: KMZ_FOLDER_ID,
             base64: b64,
             mimeType: 'application/vnd.google-earth.kmz'
