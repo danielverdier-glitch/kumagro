@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Carga de Lote SNGM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"/>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --lote-blue:#1a56db; --lote-blue-fill:rgba(26,86,219,0.5);
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+  .container{max-width:920px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:28px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:18px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  input[type=text],input[type=date],select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:var(--font);color:var(--text);background:white;transition:border-color .15s;outline:none}
+  input[type=text]:focus,input[type=date]:focus,select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .tabs{display:flex;gap:0;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:18px}
+  .tab-btn{flex:1;padding:9px 14px;font-size:13px;font-weight:600;background:white;border:none;cursor:pointer;color:var(--text-soft);transition:background .15s,color .15s}
+  .tab-btn.active{background:var(--gh-green);color:white}
+  .tab-btn:not(:last-child){border-right:1.5px solid var(--border)}
+  .tab-panel{display:none}.tab-panel.active{display:block}
+  .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:32px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--bg)}
+  .upload-zone:hover,.upload-zone.drag{border-color:var(--gh-green);background:var(--gh-green-light)}
+  .upload-zone .icon{font-size:32px;margin-bottom:10px}
+  .upload-zone p{font-size:13px;color:var(--text-soft)}
+  .upload-zone strong{color:var(--gh-green)}
+  #kmz-input{display:none}
+  /* Mapa wrapper con buscador encima */
+  .map-wrapper{position:relative}
+  .map-search{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;gap:6px;width:340px}
+  .map-search input{flex:1;padding:8px 12px;border-radius:7px;border:1.5px solid var(--border);font-size:13px;font-family:var(--font);outline:none;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .map-search input:focus{border-color:var(--lote-blue)}
+  .map-search button{padding:8px 14px;background:var(--lote-blue);color:white;border:none;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);white-space:nowrap}
+  .map-search button:hover{background:#1444b0}
+  #map-container,#map-container-kmz{border-radius:8px;overflow:hidden;border:1.5px solid var(--border)}
+  #map{height:400px}
+  #map2{height:340px}
+  .map-hint{font-size:12px;color:var(--text-soft);margin-top:8px;display:flex;align-items:flex-start;gap:6px}
+  .map-hint::before{content:"i";background:var(--gh-green-light);color:var(--gh-green);border-radius:50%;width:18px;height:18px;min-width:18px;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:bold}
+  #polygon-preview,#kmz-info{display:none;margin-top:14px;border-radius:6px;padding:12px 14px;font-size:13px}
+  #polygon-preview{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);color:var(--gh-green-dark)}
+  #kmz-info{background:var(--gh-gold-light);border:1px solid #e8d5a0;border-left:3px solid var(--gh-gold)}
+  .btn-row{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
+  .btn{padding:10px 22px;border-radius:7px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font)}
+  .btn:active{transform:scale(.98)}
+  .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn-add{background:var(--lote-blue);color:white}.btn-add:hover{background:#1444b0}
+  .btn-secondary{background:white;color:var(--text);border:1.5px solid var(--border)}.btn-secondary:hover{background:var(--bg)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 14px;text-align:left;font-weight:600;font-size:12px;letter-spacing:.04em;white-space:nowrap}
+  tbody tr{border-bottom:1px solid var(--border);transition:background .1s}
+  tbody tr:hover{background:var(--gh-green-light)}
+  tbody td{padding:10px 14px;color:var(--text);vertical-align:middle}
+  .badge{display:inline-block;padding:2px 8px;border-radius:20px;background:var(--gh-green-light);color:var(--gh-green-dark);font-size:11px;font-weight:700}
+  .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  #map-resumen{height:420px;border-radius:8px;border:1.5px solid var(--border)}
+  /* Status bar */
+  #status-bar{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark);margin-bottom:16px;display:none}
+  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.error{background:#b33}
+  #toast.info{background:#1a56db}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .required{color:#c0392b}
+  @media(max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.btn-row{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM</div>
+</header>
+
+<div class="container">
+  <h1>Registro de lotes</h1>
+  <p class="page-sub">Completá los datos del productor y cargá el polígono del lote dibujándolo en el mapa o subiendo un KMZ.</p>
+
+  <!-- Status config -->
+  <div id="status-bar"></div>
+
+  <!-- Formulario -->
+  <div class="card">
+    <div class="card-title">Datos del lote</div>
+    <div class="grid-4" style="margin-bottom:16px">
+      <div>
+        <label>Productor <span class="required">*</span></label>
+        <input type="text" id="productor" placeholder="Nombre completo">
+      </div>
+      <div>
+        <label>Nombre del campo <span class="required">*</span></label>
+        <input type="text" id="nombre-campo" placeholder="Establecimiento">
+      </div>
+      <div>
+        <label>Lote</label>
+        <input type="text" id="lote" placeholder="Ej: Lote 4 Norte">
+      </div>
+      <div>
+        <label>Variedad <span class="required">*</span></label>
+        <select id="variedad">
+          <option value="">Seleccioná...</option>
+          <option>K 38C21</option><option>K 46C25</option><option>K 50C21</option>
+          <option>K 6000</option><option>K 60C26</option><option>K 6501</option>
+          <option>K 73C23</option><option value="otra">Otra</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div id="variedad-otra-wrap" style="display:none">
+        <label>Especificar variedad</label>
+        <input type="text" id="variedad-otra" placeholder="Nombre de la variedad">
+      </div>
+      <div>
+        <label>Fecha estimada de siembra <span class="required">*</span></label>
+        <input type="date" id="fecha-siembra">
+      </div>
+    </div>
+  </div>
+
+  <!-- Polígono -->
+  <div class="card">
+    <div class="card-title">Polígono del lote</div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('map')">✏ Dibujar en el mapa</button>
+      <button class="tab-btn" onclick="switchTab('kmz')">📎 Subir archivo KMZ</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-map">
+      <div class="map-wrapper">
+        <div class="map-search">
+          <input type="text" id="map-search-input" placeholder="Buscar localidad, provincia..." onkeydown="if(event.key==='Enter')buscarEnMapa()">
+          <button onclick="buscarEnMapa()">Buscar</button>
+        </div>
+        <div id="map-container"><div id="map"></div></div>
+      </div>
+      <p class="map-hint">Buscá la zona en el buscador, luego usá la herramienta de polígono (panel izquierdo) para marcar el contorno del lote. Cerrá haciendo clic en el primer punto.</p>
+      <div id="polygon-preview"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-kmz">
+      <div class="upload-zone" id="upload-zone" onclick="document.getElementById('kmz-input').click()"
+           ondragover="event.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="handleDrop(event)">
+        <div class="icon">📂</div>
+        <p><strong>Hacé clic para seleccionar</strong> o arrastrá el archivo aquí</p>
+        <p style="margin-top:6px;font-size:11px;opacity:.7">Formato KMZ o KML · máx. 10 MB</p>
+      </div>
+      <input type="file" id="kmz-input" accept=".kmz,.kml" onchange="handleKMZFile(this.files[0])">
+      <div id="kmz-info"></div>
+      <div id="kmz-map-container" style="display:none;margin-top:14px">
+        <div id="map2"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Acciones -->
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="resetForm()">Limpiar</button>
+    <button class="btn btn-add" onclick="agregarLote()">+ Agregar otro</button>
+    <button class="btn btn-primary" id="btn-guardar" onclick="guardarTodo()">Guardar en Drive</button>
+  </div>
+
+  <!-- Tabla -->
+  <div class="card" style="margin-top:32px">
+    <div class="card-title">Lotes cargados en esta sesión</div>
+    <div class="table-wrap">
+      <table id="tabla-lotes">
+        <thead>
+          <tr>
+            <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
+            <th>Provincia</th><th>Departamento</th>
+            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body">
+          <tr class="empty-row"><td colspan="9">Aún no hay lotes agregados</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mapa resumen -->
+  <div class="card">
+    <div class="card-title">Mapa de todos los lotes</div>
+    <div id="map-resumen"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG — reemplazá con tu URL de Apps Script desplegado
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'TU_APPS_SCRIPT_URL_AQUI';
+const SHEET_ID        = '1_IslJKixdyIbuYZf88pEdz3kXqDfDCWMoHENSDq3Mf4';
+const KMZ_FOLDER_ID   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
+
+// ─── ESTADO ───────────────────────────────────────────────
+let currentPolygon  = null;
+let currentKmzFile  = null;   // File object original del KMZ subido
+let activeTab       = 'map';
+let map1=null, map2=null, mapResumen=null;
+let drawnItems=null;
+let lotesAgregados  = [];
+let resumenLayers   = [];
+
+// ─── VERIFICAR CONFIG ─────────────────────────────────────
+function checkConfig() {
+  const sb = document.getElementById('status-bar');
+  if (APPS_SCRIPT_URL === 'TU_APPS_SCRIPT_URL_AQUI') {
+    sb.style.display = 'block';
+    sb.innerHTML = '⚠ <strong>Apps Script no configurado.</strong> El guardado descargará un JSON local hasta que configures la URL. Ver instrucciones al pie del HTML.';
+    sb.style.background = '#fdf6e8';
+    sb.style.borderLeftColor = '#c8a04a';
+    sb.style.color = '#7a5c1a';
+  }
+}
+
+// ─── TRADUCCIONES LEAFLET DRAW ────────────────────────────
+function traducirDraw() {
+  if (!L.drawLocal) return;
+  const d = L.drawLocal.draw;
+  d.toolbar.buttons.polygon         = 'Dibujar polígono';
+  d.toolbar.actions.title           = 'Cancelar dibujo';
+  d.toolbar.actions.text            = 'Cancelar';
+  d.toolbar.finish.title            = 'Terminar de dibujar';
+  d.toolbar.finish.text             = 'Finalizar';
+  d.toolbar.undo.title              = 'Eliminar el último punto';
+  d.toolbar.undo.text               = 'Deshacer';
+  d.handlers.polygon.tooltip.start  = 'Hacé clic para comenzar el polígono.';
+  d.handlers.polygon.tooltip.cont   = 'Hacé clic para continuar dibujando.';
+  d.handlers.polygon.tooltip.end    = 'Hacé clic en el primer punto para cerrar.';
+  const e = L.drawLocal.edit;
+  e.toolbar.buttons.edit            = 'Editar polígono';
+  e.toolbar.buttons.editDisabled    = 'Sin polígonos para editar';
+  e.toolbar.buttons.remove          = 'Eliminar polígono';
+  e.toolbar.buttons.removeDisabled  = 'Sin polígonos para eliminar';
+  e.toolbar.actions.save.title      = 'Guardar cambios';
+  e.toolbar.actions.save.text       = 'Guardar';
+  e.toolbar.actions.cancel.title    = 'Cancelar';
+  e.toolbar.actions.cancel.text     = 'Cancelar';
+  e.toolbar.actions.clearAll.title  = 'Limpiar todo';
+  e.toolbar.actions.clearAll.text   = 'Limpiar';
+  e.handlers.edit.tooltip.text      = 'Arrastrá los vértices para editar.';
+  e.handlers.remove.tooltip.text    = 'Hacé clic en el polígono para eliminarlo.';
+}
+
+// ─── MAPAS ────────────────────────────────────────────────
+function addBaseLayers(m) {
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Imagery © Esri',maxZoom:19}).addTo(m);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'',maxZoom:19,opacity:.8}).addTo(m);
+}
+
+function initMap1() {
+  if (map1) return;
+  traducirDraw();
+  map1 = L.map('map').setView([-34.5,-63],5);
+  addBaseLayers(map1);
+  drawnItems = new L.FeatureGroup().addTo(map1);
+  const drawCtrl = new L.Control.Draw({
+    edit:{featureGroup:drawnItems},
+    draw:{
+      polygon:{shapeOptions:{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}},
+      polyline:false,rectangle:false,circle:false,marker:false,circlemarker:false
+    }
+  });
+  map1.addControl(drawCtrl);
+  map1.on(L.Draw.Event.CREATED, e=>{
+    drawnItems.clearLayers(); drawnItems.addLayer(e.layer);
+    currentPolygon = e.layer.toGeoJSON().geometry;
+    showPolygonInfo(currentPolygon.coordinates[0],'dibujado','polygon-preview');
+  });
+  map1.on(L.Draw.Event.EDITED, e=>{
+    e.layers.eachLayer(l=>{ currentPolygon=l.toGeoJSON().geometry; showPolygonInfo(currentPolygon.coordinates[0],'editado','polygon-preview'); });
+  });
+  map1.on(L.Draw.Event.DELETED, ()=>{ currentPolygon=null; document.getElementById('polygon-preview').style.display='none'; });
+}
+
+function initMap2() {
+  if (map2) return;
+  map2 = L.map('map2').setView([-34.5,-63],5);
+  addBaseLayers(map2);
+}
+
+function initMapResumen() {
+  if (mapResumen) return;
+  mapResumen = L.map('map-resumen').setView([-34.5,-63],5);
+  addBaseLayers(mapResumen);
+}
+
+// ─── BUSCADOR EN MAPA ─────────────────────────────────────
+async function buscarEnMapa() {
+  const q = document.getElementById('map-search-input').value.trim();
+  if (!q) return;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+', Argentina')}&format=json&limit=1&accept-language=es`;
+    const r = await fetch(url, {headers:{'User-Agent':'KumagroSNGM/1.0'}});
+    const data = await r.json();
+    if (!data.length) { showToast('No se encontró la ubicación', true); return; }
+    const {lat,lon,boundingbox} = data[0];
+    if (boundingbox) {
+      map1.fitBounds([[+boundingbox[0],+boundingbox[2]],[+boundingbox[1],+boundingbox[3]]]);
+    } else {
+      map1.setView([+lat,+lon], 12);
+    }
+  } catch(e) { showToast('Error en la búsqueda: '+e.message, true); }
+}
+
+// ─── TABS ─────────────────────────────────────────────────
+function switchTab(tab) {
+  activeTab=tab;
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>
+    b.classList.toggle('active',(i===0&&tab==='map')||(i===1&&tab==='kmz'))
+  );
+  document.getElementById('tab-map').classList.toggle('active',tab==='map');
+  document.getElementById('tab-kmz').classList.toggle('active',tab==='kmz');
+  if(tab==='map') setTimeout(()=>{ if(map1) map1.invalidateSize(); else initMap1(); },50);
+  if(tab==='kmz') setTimeout(()=>{ if(map2) map2.invalidateSize(); },50);
+}
+
+// ─── POLÍGONO INFO ────────────────────────────────────────
+function showPolygonInfo(coords, modo, elId) {
+  const area=calcArea(coords), c=calcCentroid(coords);
+  const el=document.getElementById(elId);
+  el.style.display='block';
+  el.innerHTML=`<strong>✓ Polígono ${modo}</strong> · ${coords.length-1} vértices · Área aprox: <strong>${area} ha</strong> · Centroide: <strong>${c.lat.toFixed(5)}°, ${c.lng.toFixed(5)}°</strong>`;
+}
+
+function calcArea(coords) {
+  let area=0; const n=coords.length;
+  for(let i=0;i<n-1;i++){area+=coords[i][0]*coords[i+1][1];area-=coords[i+1][0]*coords[i][1];}
+  return (Math.abs(area)/2*1236400*Math.cos(-34.5*Math.PI/180)).toFixed(1);
+}
+
+function calcCentroid(coords) {
+  let lat=0,lng=0,n=coords.length-1;
+  for(let i=0;i<n;i++){lng+=coords[i][0];lat+=coords[i][1];}
+  return {lat:lat/n,lng:lng/n};
+}
+
+// ─── GEOCODIFICACIÓN INVERSA — API IGN Argentina ──────────
+async function getProvinciaDepto(lat, lng) {
+  try {
+    // API Georef Argentina (IGN) — división política oficial
+    const url = `https://apis.datos.gob.ar/georef/api/ubicacion?lat=${lat}&lon=${lng}&aplanar=true`;
+    const r = await fetch(url);
+    const d = await r.json();
+    const u = d.ubicacion || {};
+    const provincia    = u.provincia_nombre    || '—';
+    const departamento = u.departamento_nombre || u.municipio_nombre || '—';
+    return {provincia, departamento};
+  } catch {
+    // Fallback Nominatim si IGN falla
+    try {
+      const url2=`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=es`;
+      const r2=await fetch(url2,{headers:{'User-Agent':'KumagroSNGM/1.0'}});
+      const d2=await r2.json();
+      const addr=d2.address||{};
+      return {provincia:addr.state||'—', departamento:addr.county||addr.state_district||'—'};
+    } catch { return {provincia:'—',departamento:'—'}; }
+  }
+}
+
+// ─── KMZ / KML ────────────────────────────────────────────
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  const file=e.dataTransfer.files[0];
+  if(file) handleKMZFile(file);
+}
+
+async function handleKMZFile(file) {
+  if(!file) return;
+  currentKmzFile = file;   // guardar referencia para subir a Drive
+  const ext=file.name.split('.').pop().toLowerCase();
+  let kmlText;
+  try {
+    if(ext==='kmz'){
+      const zip=await JSZip.loadAsync(file);
+      const kmlFile=Object.keys(zip.files).find(n=>n.endsWith('.kml'));
+      if(!kmlFile){showToast('No se encontró KML dentro del KMZ',true);return;}
+      kmlText=await zip.files[kmlFile].async('text');
+    } else { kmlText=await file.text(); }
+    parseKML(kmlText,file.name);
+  } catch(err){showToast('Error al leer el archivo: '+err.message,true);}
+}
+
+function parseKML(kmlText, filename) {
+  const doc=new DOMParser().parseFromString(kmlText,'text/xml');
+  const placemarks=doc.querySelectorAll('Placemark');
+  if(!placemarks.length){showToast('No se encontraron geometrías en el archivo',true);return;}
+  let coordText='',placeName='';
+  for(const pm of placemarks){
+    const coords=pm.querySelector('coordinates');
+    if(coords){coordText=coords.textContent.trim();placeName=pm.querySelector('name')?.textContent||'';break;}
+  }
+  if(!coordText){showToast('No se encontró polígono en el archivo',true);return;}
+  const pairs=coordText.trim().split(/\s+/).map(p=>{
+    const [lng,lat]=p.split(',').map(Number);return[lng,lat];
+  }).filter(p=>!isNaN(p[0])&&!isNaN(p[1]));
+  if(pairs.length<3){showToast('El polígono tiene muy pocos vértices',true);return;}
+  if(pairs[0][0]!==pairs[pairs.length-1][0]) pairs.push(pairs[0]);
+  currentPolygon={type:'Polygon',coordinates:[pairs]};
+
+  document.getElementById('kmz-map-container').style.display='block';
+  setTimeout(()=>{
+    initMap2();
+    map2.eachLayer(l=>{if(l instanceof L.Polygon) map2.removeLayer(l);});
+    const poly=L.polygon(pairs.map(p=>[p[1],p[0]]),
+      {color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}).addTo(map2);
+    map2.fitBounds(poly.getBounds(),{padding:[30,30]});
+    map2.invalidateSize();
+  },100);
+
+  const area=calcArea(pairs),c=calcCentroid(pairs);
+  document.getElementById('kmz-info').style.display='block';
+  document.getElementById('kmz-info').innerHTML=
+    `<strong>✓ ${filename}</strong>${placeName?' · '+placeName:''}<br>
+     ${pairs.length-1} vértices · Área aprox: <strong>${area} ha</strong> · 
+     Centroide: <strong>${c.lat.toFixed(5)}°, ${c.lng.toFixed(5)}°</strong>`;
+}
+
+// ─── AGREGAR LOTE ─────────────────────────────────────────
+async function agregarLote() {
+  const productor   = document.getElementById('productor').value.trim();
+  const nombreCampo = document.getElementById('nombre-campo').value.trim();
+  const lote        = document.getElementById('lote').value.trim();
+  const varSel      = document.getElementById('variedad').value;
+  const variedad    = varSel==='otra' ? document.getElementById('variedad-otra').value.trim() : varSel;
+  const fechaSiembra= document.getElementById('fecha-siembra').value;
+
+  if(!productor)    {showToast('Completá el nombre del productor',true);return;}
+  if(!nombreCampo)  {showToast('Completá el nombre del campo',true);return;}
+  if(!variedad)     {showToast('Seleccioná una variedad',true);return;}
+  if(!fechaSiembra) {showToast('Indicá la fecha estimada de siembra',true);return;}
+  if(!currentPolygon){showToast('Dibujá el polígono o subí un KMZ',true);return;}
+
+  const coords   = currentPolygon.coordinates[0];
+  const centroid = calcCentroid(coords);
+  const area     = calcArea(coords);
+  const campana  = calcCampana(new Date());
+
+  showToast('Obteniendo ubicación oficial...','info');
+  const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
+
+  const idLote = 'SNGM-'+Date.now();
+  const loteObj = {
+    id_lote:idLote, productor, nombre_campo:nombreCampo, lote,
+    variedad, fecha_siembra_estimada:fechaSiembra, campana,
+    provincia, departamento, area_ha:area,
+    poligono_geojson:JSON.stringify(currentPolygon),
+    fecha_carga:new Date().toISOString().slice(0,10),
+    latitud_centroide:centroid.lat.toFixed(6),
+    longitud_centroide:centroid.lng.toFixed(6),
+    kmz_filename: currentKmzFile ? currentKmzFile.name : '',
+    _kmzFile: currentKmzFile  // ref temporal para subida
+  };
+
+  lotesAgregados.push(loteObj);
+  actualizarTabla();
+  agregarAlMapaResumen(loteObj);
+  showToast('✓ Lote agregado — '+nombreCampo+(lote?' · '+lote:''));
+
+  // Reset solo polígono, mantener datos del formulario
+  currentPolygon=null; currentKmzFile=null;
+  if(drawnItems) drawnItems.clearLayers();
+  document.getElementById('polygon-preview').style.display='none';
+  document.getElementById('kmz-info').style.display='none';
+  document.getElementById('kmz-map-container').style.display='none';
+  document.getElementById('kmz-input').value='';
+  switchTab('map');
+}
+
+function calcCampana(fecha) {
+  const mes=fecha.getMonth()+1, anio=fecha.getFullYear();
+  return mes>=7
+    ? `${String(anio).slice(2)}/${String(anio+1).slice(2)}`
+    : `${String(anio-1).slice(2)}/${String(anio).slice(2)}`;
+}
+
+// ─── TABLA ────────────────────────────────────────────────
+function actualizarTabla() {
+  const tbody=document.getElementById('tabla-body');
+  if(!lotesAgregados.length){
+    tbody.innerHTML='<tr class="empty-row"><td colspan="9">Aún no hay lotes agregados</td></tr>';return;
+  }
+  tbody.innerHTML=lotesAgregados.map((l,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${l.productor}</td>
+      <td>${l.nombre_campo}</td>
+      <td>${l.lote||'—'}</td>
+      <td>${l.provincia}</td>
+      <td>${l.departamento}</td>
+      <td><span class="badge">${l.variedad}</span></td>
+      <td>${formatFecha(l.fecha_siembra_estimada)}</td>
+      <td>${l.area_ha}</td>
+    </tr>`).join('');
+}
+
+function formatFecha(f) {
+  if(!f) return '—';
+  const [y,m,d]=f.split('-');return `${d}/${m}/${y}`;
+}
+
+// ─── MAPA RESUMEN ─────────────────────────────────────────
+function agregarAlMapaResumen(lote) {
+  initMapResumen();
+  const geom=JSON.parse(lote.poligono_geojson);
+  const ll=geom.coordinates[0].map(p=>[p[1],p[0]]);
+  const layer=L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}).addTo(mapResumen);
+  layer.bindTooltip(`<strong>${lote.nombre_campo}</strong>${lote.lote?' · '+lote.lote:''}<br>${lote.productor}<br><span style="color:#555">${lote.variedad}</span>`,{sticky:true});
+  resumenLayers.push(layer);
+  const group=L.featureGroup(resumenLayers);
+  mapResumen.fitBounds(group.getBounds(),{padding:[40,40]});
+  mapResumen.invalidateSize();
+}
+
+// ─── GUARDAR EN DRIVE ─────────────────────────────────────
+async function guardarTodo() {
+  if(!lotesAgregados.length){showToast('Primero agregá al menos un lote',true);return;}
+  const btn=document.getElementById('btn-guardar');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Guardando...';
+
+  if(APPS_SCRIPT_URL==='TU_APPS_SCRIPT_URL_AQUI'){
+    // Fallback: descarga JSON
+    const exportData=lotesAgregados.map(l=>{const c={...l};delete c._kmzFile;return c;});
+    const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download='lotes_SNGM_'+new Date().toISOString().slice(0,10)+'.json';a.click();
+    showToast('⚠ Apps Script no configurado — descargado como JSON');
+    btn.disabled=false;btn.innerHTML='Guardar en Drive';return;
+  }
+
+  let okSheet=0, okKmz=0, errores=[];
+
+  for(const lote of lotesAgregados){
+    // 1. Guardar fila en Sheet
+    const rowData={...lote}; delete rowData._kmzFile;
+    try {
+      await fetch(APPS_SCRIPT_URL,{
+        method:'POST', mode:'no-cors',
+        body:JSON.stringify({action:'appendRow', data:rowData}),
+        headers:{'Content-Type':'application/json'}
+      });
+      okSheet++;
+    } catch(e){ errores.push('Fila '+lote.id_lote+': '+e.message); }
+
+    // 2. Subir KMZ si existe
+    if(lote._kmzFile){
+      try {
+        const b64=await fileToBase64(lote._kmzFile);
+        await fetch(APPS_SCRIPT_URL,{
+          method:'POST', mode:'no-cors',
+          body:JSON.stringify({
+            action:'uploadKmz',
+            filename: lote.id_lote+'_'+lote._kmzFile.name,
+            folderId: KMZ_FOLDER_ID,
+            base64: b64,
+            mimeType: 'application/vnd.google-earth.kmz'
+          }),
+          headers:{'Content-Type':'application/json'}
+        });
+        okKmz++;
+      } catch(e){ errores.push('KMZ '+lote.id_lote+': '+e.message); }
+    }
+  }
+
+  if(errores.length){
+    showToast('Errores: '+errores.join(' | '),true);
+  } else {
+    showToast(`✓ ${okSheet} fila${okSheet>1?'s':''} en Sheet · ${okKmz} KMZ subido${okKmz!==1?'s':''}`);
+    lotesAgregados=[];actualizarTabla();
+  }
+  btn.disabled=false;btn.innerHTML='Guardar en Drive';
+}
+
+function fileToBase64(file) {
+  return new Promise((res,rej)=>{
+    const r=new FileReader();
+    r.onload=()=>res(r.result.split(',')[1]);
+    r.onerror=rej;
+    r.readAsDataURL(file);
+  });
+}
+
+// ─── RESET FORMULARIO ────────────────────────────────────
+function resetForm() {
+  ['productor','nombre-campo','lote','variedad-otra'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('variedad').value='';
+  document.getElementById('fecha-siembra').value='';
+  document.getElementById('variedad-otra-wrap').style.display='none';
+  document.getElementById('polygon-preview').style.display='none';
+  document.getElementById('kmz-info').style.display='none';
+  document.getElementById('kmz-map-container').style.display='none';
+  document.getElementById('kmz-input').value='';
+  currentPolygon=null; currentKmzFile=null;
+  if(drawnItems) drawnItems.clearLayers();
+  switchTab('map');
+}
+
+// ─── TOAST ───────────────────────────────────────────────
+function showToast(msg,error=false,info=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='show'+(error?' error':info?' info':'');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.className='',4500);
+}
+
+// ─── INIT ────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  checkConfig();
+  setTimeout(initMap1,100);
+  setTimeout(initMapResumen,200);
+  document.getElementById('variedad').addEventListener('change',function(){
+    document.getElementById('variedad-otra-wrap').style.display=this.value==='otra'?'block':'none';
+  });
+});
+</script>
+
+<!--
+╔══════════════════════════════════════════════════════════════════╗
+║   APPS SCRIPT — pegá este código en Extensiones → Apps Script   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+const SHEET_ID     = '1_IslJKixdyIbuYZf88pEdz3kXqDfDCWMoHENSDq3Mf4';
+const KMZ_FOLDER   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
+
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+
+    if (payload.action === 'appendRow') {
+      const d = payload.data;
+      const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
+
+      // Agregar encabezados si la hoja está vacía
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['id_lote','productor','nombre_campo','lote','variedad',
+          'fecha_siembra_estimada','campana','provincia','departamento','area_ha',
+          'poligono_geojson','fecha_carga','latitud_centroide','longitud_centroide','kmz_filename']);
+      }
+
+      sheet.appendRow([
+        d.id_lote, d.productor, d.nombre_campo, d.lote||'', d.variedad,
+        d.fecha_siembra_estimada, d.campana, d.provincia, d.departamento, d.area_ha,
+        d.poligono_geojson, d.fecha_carga, d.latitud_centroide, d.longitud_centroide,
+        d.kmz_filename||''
+      ]);
+    }
+
+    if (payload.action === 'uploadKmz') {
+      const folder  = DriveApp.getFolderById(KMZ_FOLDER);
+      const decoded = Utilities.base64Decode(payload.base64);
+      const blob    = Utilities.newBlob(decoded, payload.mimeType, payload.filename);
+      folder.createFile(blob);
+    }
+
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'ok'}))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({status:'error',message:err.toString()}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+─────────────────────────────────────────────────────────────────
+PASOS:
+1. Abrí Lotes_SNGM en Drive → Extensiones → Apps Script
+2. Borrá el código existente y pegá el de arriba
+3. Clic en Implementar → Nueva implementación
+   · Tipo: Aplicación web
+   · Ejecutar como: Yo
+   · Acceso: Cualquier persona
+4. Copiá la URL y pegala en este HTML reemplazando 'TU_APPS_SCRIPT_URL_AQUI'
+─────────────────────────────────────────────────────────────────
+-->
+</body>
+</html>
