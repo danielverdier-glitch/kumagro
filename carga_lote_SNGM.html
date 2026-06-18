@@ -116,7 +116,7 @@
         <input type="text" id="nombre-campo" placeholder="Establecimiento">
       </div>
       <div>
-        <label>Lote</label>
+        <label>Lote <span class="required">*</span></label>
         <input type="text" id="lote" placeholder="Ej: Lote 4 Norte">
       </div>
       <div>
@@ -500,9 +500,17 @@ async function agregarLote() {
 
   if(!productor)    {showToast('Completá el nombre del productor',true);return;}
   if(!nombreCampo)  {showToast('Completá el nombre del campo',true);return;}
+  if(!lote)         {showToast('Completá el lote',true);return;}
   if(!variedad)     {showToast('Seleccioná una variedad',true);return;}
   if(!fechaSiembra) {showToast('Indicá la fecha estimada de siembra',true);return;}
   if(!currentPolygon){showToast('Dibujá el polígono o subí un KMZ',true);return;}
+
+  const yaExiste = lotesAgregados.some(l=>
+    l.productor.toLowerCase()===productor.toLowerCase() &&
+    l.nombre_campo.toLowerCase()===nombreCampo.toLowerCase() &&
+    l.lote.toLowerCase()===lote.toLowerCase()
+  );
+  if(yaExiste){showToast('Ese lote ya fue agregado en esta sesión para ese productor/campo',true);return;}
 
   const coords   = currentPolygon.coordinates[0];
   const centroid = calcCentroid(coords);
