@@ -96,13 +96,14 @@
   <div class="subtitle">Kumagro · Programa SNGM</div>
 </header>
 
-<div class="container">
-  <h1>Registro de lotes</h1>
-  <p class="page-sub">Completá los datos del productor y cargá el polígono del lote dibujándolo en el mapa o subiendo un KMZ.</p>
+<div class="container" id="main-container">
+  <h1 id="page-title">Registro de lotes</h1>
+  <p class="page-sub" id="page-sub">Completá los datos del productor y cargá el polígono del lote dibujándolo en el mapa o subiendo un KMZ.</p>
 
   <!-- Status config -->
   <div id="status-bar"></div>
 
+  <div id="form-section">
   <!-- Formulario -->
   <div class="card">
     <div class="card-title">Datos del lote</div>
@@ -184,6 +185,7 @@
     <button class="btn btn-add" onclick="agregarLote()">+ Agregar otro</button>
     <button class="btn btn-primary btn-guardar" onclick="guardarTodo()">Guardar</button>
   </div>
+  </div><!-- /form-section -->
 
   <!-- Tabla -->
   <div class="card" style="margin-top:32px">
@@ -211,6 +213,32 @@
   <div class="card">
     <div class="card-title">Mapa de todos los lotes</div>
     <div id="map-resumen"></div>
+    <button class="btn btn-primary btn-finalizar" id="btn-finalizar" onclick="finalizar()" style="width:100%;margin-top:14px">Finalizar</button>
+  </div>
+</div>
+
+<!-- Página de agradecimiento -->
+<div class="container" id="pagina-gracias" style="display:none">
+  <h1 style="text-align:center">¡Gracias por cargar sus lotes!</h1>
+  <p class="page-sub" style="text-align:center">A continuación, el resumen de los lotes cargados en esta sesión.</p>
+  <div class="card">
+    <div class="card-title">Lotes cargados</div>
+    <div class="table-wrap">
+      <table id="tabla-lotes-gracias">
+        <thead>
+          <tr>
+            <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
+            <th>Provincia</th><th>Departamento</th>
+            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body-gracias"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">Mapa de los lotes cargados</div>
+    <div id="map-gracias" style="height:420px;border-radius:8px;border:1.5px solid var(--border)"></div>
   </div>
 </div>
 
@@ -674,6 +702,92 @@ async function guardarTodo() {
     showToast(`✓ ${okSheet} fila${okSheet>1?'s':''} en Sheet · ${okKmz} KMZ subido${okKmz!==1?'s':''}`);
   }
   setBotonesGuardar(false);
+}
+
+// ─── FINALIZAR ────────────────────────────────────────────
+function hayDatosEnFormulario() {
+  const productor   = document.getElementById('productor').value.trim();
+  const nombreCampo = document.getElementById('nombre-campo').value.trim();
+  const lote        = document.getElementById('lote').value.trim();
+  return !!(productor || nombreCampo || lote || currentPolygon || currentKmzFile);
+}
+
+function formularioCompleto() {
+  const productor   = document.getElementById('productor').value.trim();
+  const nombreCampo = document.getElementById('nombre-campo').value.trim();
+  const lote        = document.getElementById('lote').value.trim();
+  const varSel      = document.getElementById('variedad').value;
+  const variedad    = varSel==='otra' ? document.getElementById('variedad-otra').value.trim() : varSel;
+  const fechaSiembra= document.getElementById('fecha-siembra').value;
+  return !!(productor && nombreCampo && lote && variedad && fechaSiembra && currentPolygon);
+}
+
+async function finalizar() {
+  const btn = document.getElementById('btn-finalizar');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Procesando...';
+
+  if (hayDatosEnFormulario()) {
+    if (formularioCompleto()) {
+      await agregarLote();
+    } else {
+      showToast('Hay datos sin completar en el formulario, no se agregaron',true);
+    }
+  }
+
+  const pendientes = lotesAgregados.filter(l=>!l._guardado);
+  for (const lote of pendientes) {
+    await guardarLoteEnDrive(lote);
+  }
+  actualizarTabla();
+
+  if (!lotesAgregados.length) {
+    showToast('Agregá al menos un lote antes de finalizar',true);
+    btn.disabled = false;
+    btn.textContent = original;
+    return;
+  }
+
+  mostrarPaginaGracias();
+  btn.disabled = false;
+  btn.textContent = original;
+}
+
+function mostrarPaginaGracias() {
+  document.getElementById('main-container').style.display = 'none';
+  document.getElementById('pagina-gracias').style.display = 'block';
+
+  const tbody = document.getElementById('tabla-body-gracias');
+  tbody.innerHTML = lotesAgregados.map((l,i)=>`
+    <tr>
+      <td>${i+1}</td>
+      <td>${l.productor}</td>
+      <td>${l.nombre_campo}</td>
+      <td>${l.lote||'—'}</td>
+      <td>${l.provincia}</td>
+      <td>${l.departamento}</td>
+      <td><span class="badge">${l.variedad}</span></td>
+      <td>${formatFecha(l.fecha_siembra_estimada)}</td>
+      <td>${l.area_ha}</td>
+    </tr>`).join('');
+
+  if (!window.mapGracias) {
+    window.mapGracias = L.map('map-gracias').setView([-34.5,-63],5);
+    addBaseLayers(window.mapGracias);
+  }
+  window.mapGracias.invalidateSize();
+  const layers = lotesAgregados.map(l=>{
+    const geom = JSON.parse(l.poligono_geojson);
+    const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+    const layer = L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}).addTo(window.mapGracias);
+    layer.bindTooltip(`<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad}</span>`,{sticky:true});
+    return layer;
+  });
+  if (layers.length) {
+    window.mapGracias.fitBounds(L.featureGroup(layers).getBounds(),{padding:[40,40]});
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function setBotonesGuardar(saving) {
