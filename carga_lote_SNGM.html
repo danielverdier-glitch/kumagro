@@ -452,6 +452,37 @@ function parseKML(kmlText, filename) {
      Centroide: <strong>${c.lat.toFixed(5)}°, ${c.lng.toFixed(5)}°</strong>`;
 }
 
+// ─── GENERAR KMZ DESDE POLÍGONO DIBUJADO ──────────────────
+function sanitizarNombreArchivo(nombre) {
+  return (nombre||'lote').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || 'lote';
+}
+
+async function generarKMZDesdePoligono(coords, idLote, nombre) {
+  const coordText = coords.map(p=>`${p[0]},${p[1]},0`).join(' ');
+  const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${idLote}</name>
+    <Placemark>
+      <name>${nombre}</name>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>${coordText}</coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>`;
+  const zip = new JSZip();
+  zip.file('doc.kml', kml);
+  const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.google-earth.kmz'});
+  const filename = `${idLote}_${sanitizarNombreArchivo(nombre)}.kmz`;
+  return new File([blob], filename, {type:'application/vnd.google-earth.kmz'});
+}
+
 // ─── AGREGAR LOTE ─────────────────────────────────────────
 async function agregarLote() {
   const productor   = document.getElementById('productor').value.trim();
@@ -476,6 +507,7 @@ async function agregarLote() {
   const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
 
   const idLote = 'SNGM-'+Date.now();
+  const kmzFile = currentKmzFile || await generarKMZDesdePoligono(coords, idLote, nombreCampo+(lote?'_'+lote:''));
   const loteObj = {
     id_lote:idLote, productor, nombre_campo:nombreCampo, lote,
     variedad, fecha_siembra_estimada:fechaSiembra, campana,
@@ -484,8 +516,8 @@ async function agregarLote() {
     fecha_carga:new Date().toISOString().slice(0,10),
     latitud_centroide:centroid.lat.toFixed(6),
     longitud_centroide:centroid.lng.toFixed(6),
-    kmz_filename: currentKmzFile ? currentKmzFile.name : '',
-    _kmzFile: currentKmzFile  // ref temporal para subida
+    kmz_filename: kmzFile.name,
+    _kmzFile: kmzFile  // ref temporal para subida
   };
 
   lotesAgregados.push(loteObj);
