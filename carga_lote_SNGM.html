@@ -182,7 +182,7 @@
   <div class="btn-row">
     <button class="btn btn-secondary" onclick="resetForm()">Limpiar</button>
     <button class="btn btn-add" onclick="agregarLote()">+ Agregar otro</button>
-    <button class="btn btn-primary" id="btn-guardar" onclick="guardarTodo()">Guardar en Drive</button>
+    <button class="btn btn-primary btn-guardar" onclick="guardarTodo()">Guardar</button>
   </div>
 
   <!-- Tabla -->
@@ -194,13 +194,16 @@
           <tr>
             <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
             <th>Provincia</th><th>Departamento</th>
-            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th>
+            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th><th>Estado</th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="9">Aún no hay lotes agregados</td></tr>
+          <tr class="empty-row"><td colspan="10">Aún no hay lotes agregados</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-guardar" onclick="guardarTodo()">Guardar</button>
     </div>
   </div>
 
@@ -529,7 +532,6 @@ async function agregarLote() {
   lotesAgregados.push(loteObj);
   actualizarTabla();
   agregarAlMapaResumen(loteObj);
-  showToast('✓ Lote agregado — '+nombreCampo+(lote?' · '+lote:''));
 
   // Reset solo polígono, mantener datos del formulario
   currentPolygon=null; currentKmzFile=null;
@@ -539,6 +541,16 @@ async function agregarLote() {
   document.getElementById('kmz-map-container').style.display='none';
   document.getElementById('kmz-input').value='';
   switchTab('map');
+
+  // Guardar el lote recién agregado en Drive/Sheet de inmediato
+  showToast('Guardando '+nombreCampo+(lote?' · '+lote:'')+'...','info');
+  const r = await guardarLoteEnDrive(loteObj);
+  actualizarTabla();
+  if(r.error){
+    showToast('⚠ '+nombreCampo+(lote?' · '+lote:'')+' agregado pero con errores: '+r.error,true);
+  } else {
+    showToast('✓ '+nombreCampo+(lote?' · '+lote:'')+' guardado en Sheet y Drive');
+  }
 }
 
 function calcCampana(fecha) {
@@ -552,7 +564,7 @@ function calcCampana(fecha) {
 function actualizarTabla() {
   const tbody=document.getElementById('tabla-body');
   if(!lotesAgregados.length){
-    tbody.innerHTML='<tr class="empty-row"><td colspan="9">Aún no hay lotes agregados</td></tr>';return;
+    tbody.innerHTML='<tr class="empty-row"><td colspan="10">Aún no hay lotes agregados</td></tr>';return;
   }
   tbody.innerHTML=lotesAgregados.map((l,i)=>`
     <tr>
@@ -565,6 +577,7 @@ function actualizarTabla() {
       <td><span class="badge">${l.variedad}</span></td>
       <td>${formatFecha(l.fecha_siembra_estimada)}</td>
       <td>${l.area_ha}</td>
+      <td>${l._guardado?'✓ Guardado':'⚠ Pendiente'}</td>
     </tr>`).join('');
 }
 
@@ -587,60 +600,79 @@ function agregarAlMapaResumen(lote) {
 }
 
 // ─── GUARDAR EN DRIVE ─────────────────────────────────────
+async function guardarLoteEnDrive(lote) {
+  if(APPS_SCRIPT_URL==='TU_APPS_SCRIPT_URL_AQUI'){
+    return {sheetOk:false, kmzOk:false, error:'Apps Script no configurado'};
+  }
+  let sheetOk=false, kmzOk=!lote._kmzFile, error=null;
+
+  const rowData={...lote}; delete rowData._kmzFile;
+  try {
+    await fetch(APPS_SCRIPT_URL,{
+      method:'POST', mode:'no-cors',
+      body:JSON.stringify({action:'appendRow', data:rowData})
+    });
+    sheetOk=true;
+  } catch(e){ error='Fila '+lote.id_lote+': '+e.message; }
+
+  if(lote._kmzFile){
+    try {
+      const b64=await fileToBase64(lote._kmzFile);
+      await fetch(APPS_SCRIPT_URL,{
+        method:'POST', mode:'no-cors',
+        body:JSON.stringify({
+          action:'uploadKmz',
+          filename: lote._kmzFile.name,
+          folderId: KMZ_FOLDER_ID,
+          base64: b64,
+          mimeType: 'application/vnd.google-earth.kmz'
+        })
+      });
+      kmzOk=true;
+    } catch(e){ error=(error?error+' | ':'')+'KMZ '+lote.id_lote+': '+e.message; }
+  }
+
+  lote._guardado = sheetOk && kmzOk;
+  return {sheetOk, kmzOk, error};
+}
+
 async function guardarTodo() {
-  if(!lotesAgregados.length){showToast('Primero agregá al menos un lote',true);return;}
-  const btn=document.getElementById('btn-guardar');
-  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Guardando...';
+  const pendientes = lotesAgregados.filter(l=>!l._guardado);
+  if(!pendientes.length){showToast(lotesAgregados.length?'No hay lotes pendientes de guardar':'Primero agregá al menos un lote',true);return;}
 
   if(APPS_SCRIPT_URL==='TU_APPS_SCRIPT_URL_AQUI'){
-    // Fallback: descarga JSON
     const exportData=lotesAgregados.map(l=>{const c={...l};delete c._kmzFile;return c;});
     const blob=new Blob([JSON.stringify(exportData,null,2)],{type:'application/json'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
     a.download='lotes_SNGM_'+new Date().toISOString().slice(0,10)+'.json';a.click();
     showToast('⚠ Apps Script no configurado — descargado como JSON');
-    btn.disabled=false;btn.innerHTML='Guardar en Drive';return;
+    return;
   }
+
+  setBotonesGuardar(true);
 
   let okSheet=0, okKmz=0, errores=[];
-
-  for(const lote of lotesAgregados){
-    // 1. Guardar fila en Sheet
-    const rowData={...lote}; delete rowData._kmzFile;
-    try {
-      await fetch(APPS_SCRIPT_URL,{
-        method:'POST', mode:'no-cors',
-        body:JSON.stringify({action:'appendRow', data:rowData})
-      });
-      okSheet++;
-    } catch(e){ errores.push('Fila '+lote.id_lote+': '+e.message); }
-
-    // 2. Subir KMZ si existe
-    if(lote._kmzFile){
-      try {
-        const b64=await fileToBase64(lote._kmzFile);
-        await fetch(APPS_SCRIPT_URL,{
-          method:'POST', mode:'no-cors',
-          body:JSON.stringify({
-            action:'uploadKmz',
-            filename: lote._kmzFile.name,
-            folderId: KMZ_FOLDER_ID,
-            base64: b64,
-            mimeType: 'application/vnd.google-earth.kmz'
-          })
-        });
-        okKmz++;
-      } catch(e){ errores.push('KMZ '+lote.id_lote+': '+e.message); }
-    }
+  for(const lote of pendientes){
+    const r = await guardarLoteEnDrive(lote);
+    if(r.sheetOk) okSheet++;
+    if(r.kmzOk && lote.kmz_filename) okKmz++;
+    if(r.error) errores.push(r.error);
   }
+  actualizarTabla();
 
   if(errores.length){
     showToast('Errores: '+errores.join(' | '),true);
   } else {
     showToast(`✓ ${okSheet} fila${okSheet>1?'s':''} en Sheet · ${okKmz} KMZ subido${okKmz!==1?'s':''}`);
-    lotesAgregados=[];actualizarTabla();
   }
-  btn.disabled=false;btn.innerHTML='Guardar en Drive';
+  setBotonesGuardar(false);
+}
+
+function setBotonesGuardar(saving) {
+  document.querySelectorAll('.btn-guardar').forEach(btn=>{
+    btn.disabled = saving;
+    btn.innerHTML = saving ? '<span class="spinner"></span>Guardando...' : 'Guardar';
+  });
 }
 
 function fileToBase64(file) {
