@@ -540,7 +540,7 @@ async function agregarLote() {
   const coords   = currentPolygon.coordinates[0];
   const centroid = calcCentroid(coords);
   const area     = calcArea(coords);
-  const campana  = calcCampana(new Date());
+  const campana  = calcCampana(fechaSiembra);
 
   showToast('Obteniendo ubicación oficial...','info');
   const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
@@ -586,9 +586,9 @@ async function agregarLote() {
   }
 }
 
-function calcCampana(fecha) {
-  const mes=fecha.getMonth()+1, anio=fecha.getFullYear();
-  return mes>=7
+function calcCampana(fechaSiembraStr) {
+  const [anio,mes] = fechaSiembraStr.split('-').map(Number);
+  return mes>=5
     ? `${String(anio).slice(2)}/${String(anio+1).slice(2)}`
     : `${String(anio-1).slice(2)}/${String(anio).slice(2)}`;
 }
