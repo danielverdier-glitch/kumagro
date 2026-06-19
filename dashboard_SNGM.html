@@ -16,7 +16,8 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
-  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px;
+    position:sticky;top:0;z-index:60}
   header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
   header .logo span{color:var(--gh-gold)}
   header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
@@ -52,7 +53,7 @@
   .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:22px}
 
   .tabs{display:flex;gap:6px;align-items:flex-end;border-bottom:2.5px solid var(--gh-green);
-    margin:0 -30px 22px;padding:14px 30px 0;background:var(--bg);position:sticky;top:0;z-index:50}
+    margin:0 -30px 22px;padding:14px 30px 0;background:var(--bg);position:sticky;top:53px;z-index:50}
   .tab-btn{padding:11px 18px;font-size:13px;font-weight:700;background:#e4e9e1;border:1.5px solid var(--border);
     border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;color:var(--text-soft);
     transition:background .15s,color .15s,transform .1s;position:relative;top:2px}
