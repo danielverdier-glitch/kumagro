@@ -60,6 +60,8 @@
   .btn{padding:10px 22px;border-radius:7px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font)}
   .btn:active{transform:scale(.98)}
   .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn-secondary{background:var(--gh-green-light);color:var(--gh-green-dark);border:1.5px solid var(--gh-green)}.btn-secondary:hover{background:var(--gh-green);color:white}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
   .btn:disabled{opacity:.4;cursor:not-allowed}
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
@@ -92,12 +94,14 @@
         <select id="sel-productor" onchange="onProductorChange()">
           <option value="">Seleccioná...</option>
         </select>
+        <input type="text" id="productor-otro" class="campo-otro" placeholder="Nombre del productor" style="display:none;margin-top:8px" oninput="renderTablaLotes([]); limpiarPoligonosExistentes()">
       </div>
       <div>
         <label>Campo <span class="required">*</span></label>
         <select id="sel-campo" onchange="onCampoChange()" disabled>
           <option value="">Elegí primero un productor</option>
         </select>
+        <input type="text" id="campo-otro" class="campo-otro" placeholder="Nombre del campo" style="display:none;margin-top:8px" oninput="onCampoOtroInput()">
       </div>
       <div>
         <label>Fecha de la visita <span class="required">*</span></label>
@@ -107,7 +111,10 @@
     <div class="grid-3" style="margin-top:16px">
       <div>
         <label>Técnico</label>
-        <input type="text" id="tecnico" placeholder="Nombre del técnico">
+        <select id="sel-tecnico" onchange="onTecnicoChange()">
+          <option value="">Seleccioná...</option>
+        </select>
+        <input type="text" id="tecnico-otro" class="campo-otro" placeholder="Nombre del técnico" style="display:none;margin-top:8px">
       </div>
     </div>
   </div>
@@ -115,8 +122,11 @@
   <!-- Punto de la visita -->
   <div class="card">
     <div class="card-title">Punto de la visita</div>
+    <div class="btn-row" style="justify-content:flex-start;margin-bottom:10px">
+      <button type="button" class="btn btn-secondary" onclick="usarUbicacionActual()">📡 Usar mi ubicación actual</button>
+    </div>
     <div id="map"></div>
-    <p class="map-hint">Hacé clic en el mapa sobre el lugar donde se realizó la visita para georeferenciarla.</p>
+    <p class="map-hint">Hacé clic en el mapa sobre el lugar donde se realizó la visita para georeferenciarla, o usá el botón de ubicación satelital del equipo.</p>
     <div id="punto-info"></div>
   </div>
 
@@ -145,13 +155,16 @@
           <tr>
             <th>¿Sembrado?</th><th>Lote</th><th>Variedad</th><th>Fecha siembra</th><th>Fecha est. cosecha</th>
             <th>Estado fenológico</th><th>Estado malezas</th><th>¿Resistentes?</th>
-            <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th><th>Notas</th>
+            <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th><th>Notas</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="12">Elegí un productor y un campo para ver sus lotes</td></tr>
+          <tr class="empty-row"><td colspan="13">Elegí un productor y un campo para ver sus lotes</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="btn-row" style="justify-content:flex-start;margin-top:14px">
+      <button type="button" class="btn btn-secondary" onclick="agregarLoteManual()">+ Agregar lote</button>
     </div>
   </div>
 
@@ -173,12 +186,43 @@ const IMG_FOLDER_ID   = 'TU_ID_DE_CARPETA_DE_IMAGENES_AQUI';
 const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
 const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
 
+const TECNICOS_BASE = ['Daniel','M. Victoria','Nano'];
+const OTRO = '__otro__';
+
 // ─── ESTADO ───────────────────────────────────────────────
 let allLotes   = [];
 let allVisitas = [];
-let map = null, marker = null;
+let map = null, marker = null, polosLayer = null;
 let puntoVisita = null; // {lat,lng}
 let imagenes = []; // File[]
+let manualLoteSeq = 0;
+
+// ─── LOCALSTORAGE EXTRAS ──────────────────────────────────
+function getExtras(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+}
+function addExtra(key, valor) {
+  if (!valor) return;
+  const extras = getExtras(key);
+  if (!extras.includes(valor)) { extras.push(valor); localStorage.setItem(key, JSON.stringify(extras)); }
+}
+function getExtrasCampo(productor) {
+  try { return JSON.parse(localStorage.getItem('visitas_campos_extra')) || {}; } catch(e) { return {}; }
+}
+function addExtraCampo(productor, campo) {
+  if (!productor || !campo) return;
+  const todos = getExtrasCampo();
+  const lista = todos[productor] || [];
+  if (!lista.includes(campo)) { lista.push(campo); todos[productor] = lista; localStorage.setItem('visitas_campos_extra', JSON.stringify(todos)); }
+}
+
+function poblarSelectConOtro(sel, opciones) {
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">Seleccioná...</option>' +
+    opciones.map(o=>`<option value="${escAttr(o)}">${o}</option>`).join('') +
+    `<option value="${OTRO}">Otro...</option>`;
+  if (valorPrevio && opciones.includes(valorPrevio)) sel.value = valorPrevio;
+}
 
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
@@ -194,37 +238,90 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
   }
   construirProductores();
+  construirTecnicos();
+}
+
+function construirTecnicos() {
+  const opciones = [...TECNICOS_BASE, ...getExtras('visitas_tecnicos_extra')];
+  poblarSelectConOtro(document.getElementById('sel-tecnico'), opciones);
+}
+
+function onTecnicoChange() {
+  const sel = document.getElementById('sel-tecnico');
+  const otro = document.getElementById('tecnico-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+}
+
+function valorTecnico() {
+  const sel = document.getElementById('sel-tecnico');
+  if (sel.value === OTRO) return document.getElementById('tecnico-otro').value.trim();
+  return sel.value;
 }
 
 function construirProductores() {
   const productores = [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const sel = document.getElementById('sel-productor');
-  sel.innerHTML = '<option value="">Seleccioná...</option>' +
-    productores.map(p=>`<option value="${escAttr(p)}">${p}</option>`).join('');
+  const extras = getExtras('visitas_productores_extra').filter(p=>!productores.includes(p));
+  poblarSelectConOtro(document.getElementById('sel-productor'), [...productores, ...extras].sort((a,b)=>a.localeCompare(b)));
 }
 
 function onProductorChange() {
-  const productor = document.getElementById('sel-productor').value;
+  const sel = document.getElementById('sel-productor');
+  const otro = document.getElementById('productor-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+
   const selCampo = document.getElementById('sel-campo');
+  const productor = valorProductor();
   if (!productor) {
     selCampo.innerHTML = '<option value="">Elegí primero un productor</option>';
     selCampo.disabled = true;
+    document.getElementById('campo-otro').style.display = 'none';
     renderTablaLotes([]);
+    limpiarPoligonosExistentes();
     return;
   }
-  const campos = [...new Set(allLotes.filter(l=>l.productor===productor).map(l=>l.nombre_campo).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  selCampo.innerHTML = '<option value="">Seleccioná...</option>' +
-    campos.map(c=>`<option value="${escAttr(c)}">${c}</option>`).join('');
+  const campos = [...new Set(allLotes.filter(l=>l.productor===productor).map(l=>l.nombre_campo).filter(Boolean))];
+  const extrasCampo = (getExtrasCampo()[productor] || []).filter(c=>!campos.includes(c));
+  poblarSelectConOtro(selCampo, [...campos, ...extrasCampo].sort((a,b)=>a.localeCompare(b)));
   selCampo.disabled = false;
   renderTablaLotes([]);
+  limpiarPoligonosExistentes();
+}
+
+function valorProductor() {
+  const sel = document.getElementById('sel-productor');
+  if (sel.value === OTRO) return document.getElementById('productor-otro').value.trim();
+  return sel.value;
+}
+
+function valorCampo() {
+  const sel = document.getElementById('sel-campo');
+  if (sel.value === OTRO) return document.getElementById('campo-otro').value.trim();
+  return sel.value;
+}
+
+function onCampoOtroInput() {
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
+  const lotes = allLotes.filter(l=>l.productor===productor && l.nombre_campo===campo);
+  renderTablaLotes(lotes);
+  dibujarPoligonosExistentes(lotes);
 }
 
 function onCampoChange() {
-  const productor = document.getElementById('sel-productor').value;
-  const campo = document.getElementById('sel-campo').value;
-  if (!productor || !campo) { renderTablaLotes([]); return; }
+  const sel = document.getElementById('sel-campo');
+  const otro = document.getElementById('campo-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
   const lotes = allLotes.filter(l=>l.productor===productor && l.nombre_campo===campo);
   renderTablaLotes(lotes);
+  dibujarPoligonosExistentes(lotes);
 }
 
 function ultimaVisitaDeLote(idLote) {
@@ -233,43 +330,64 @@ function ultimaVisitaDeLote(idLote) {
   return visitas.reduce((a,b)=> (a.fecha_visita > b.fecha_visita ? a : b));
 }
 
+function filaLoteHTML(l, manual) {
+  const ultima = manual ? null : ultimaVisitaDeLote(l.id_lote);
+  const fechaSiembraPrevia  = ultima ? (ultima.fecha_siembra || '') : '';
+  const fechaCosechaPrevia  = ultima ? (ultima.fecha_cosecha_estimada || '') : '';
+  const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
+  const loteCelda = manual
+    ? `<input type="text" class="f-lote-nombre" placeholder="Lote" value="${escAttr(l.lote||'')}" style="min-width:80px">`
+    : `<strong>${l.lote||'—'}</strong>`;
+  const variedadCelda = manual
+    ? `<input type="text" class="f-lote-variedad" placeholder="Variedad" style="min-width:90px">`
+    : `${l.variedad||'—'}`;
+  return `
+  <tr data-id-lote="${escAttr(l.id_lote)}" data-lote="${escAttr(l.lote||'')}" data-variedad="${escAttr(l.variedad||'')}" data-manual="${manual?'1':'0'}">
+    <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
+    <td>${loteCelda}</td>
+    <td>${variedadCelda}</td>
+    <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
+    <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
+    <td>
+      <select class="f-estado-fenologico">
+        <option value="">—</option>
+        ${ESTADOS_FENOLOGICOS.map(e=>`<option>${e}</option>`).join('')}
+      </select>
+    </td>
+    <td><input type="text" class="f-estado-malezas" placeholder="Ej: bajo control"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-resistentes"></td>
+    <td><textarea class="f-plagas" placeholder="Observaciones..."></textarea></td>
+    <td>
+      <select class="f-condicion">
+        <option value="">—</option>
+        ${CONDICIONES_CULTIVO.map(c=>`<option>${c}</option>`).join('')}
+      </select>
+    </td>
+    <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha"></td>
+    <td><textarea class="f-notas" placeholder="Notas..."></textarea></td>
+    <td>${manual?'<button type="button" class="btn btn-secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button>':''}</td>
+  </tr>`;
+}
+
 function renderTablaLotes(lotes) {
   const tbody = document.getElementById('tabla-body');
   if (!lotes.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">Elegí un productor y un campo para ver sus lotes</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Elegí un productor y un campo para ver sus lotes</td></tr>';
     return;
   }
-  tbody.innerHTML = lotes.map(l=>{
-    const ultima = ultimaVisitaDeLote(l.id_lote);
-    const fechaSiembraPrevia  = ultima ? (ultima.fecha_siembra || '') : '';
-    const fechaCosechaPrevia  = ultima ? (ultima.fecha_cosecha_estimada || '') : '';
-    const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
-    return `
-    <tr data-id-lote="${escAttr(l.id_lote)}" data-lote="${escAttr(l.lote||'')}" data-variedad="${escAttr(l.variedad||'')}">
-      <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
-      <td><strong>${l.lote||'—'}</strong></td>
-      <td>${l.variedad||'—'}</td>
-      <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
-      <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
-      <td>
-        <select class="f-estado-fenologico">
-          <option value="">—</option>
-          ${ESTADOS_FENOLOGICOS.map(e=>`<option>${e}</option>`).join('')}
-        </select>
-      </td>
-      <td><input type="text" class="f-estado-malezas" placeholder="Ej: bajo control"></td>
-      <td style="text-align:center"><input type="checkbox" class="f-resistentes"></td>
-      <td><textarea class="f-plagas" placeholder="Observaciones..."></textarea></td>
-      <td>
-        <select class="f-condicion">
-          <option value="">—</option>
-          ${CONDICIONES_CULTIVO.map(c=>`<option>${c}</option>`).join('')}
-        </select>
-      </td>
-      <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha"></td>
-      <td><textarea class="f-notas" placeholder="Notas..."></textarea></td>
-    </tr>`;
-  }).join('');
+  tbody.innerHTML = lotes.map(l=>filaLoteHTML(l,false)).join('');
+}
+
+function agregarLoteManual() {
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { showToast('Elegí primero productor y campo', true); return; }
+  const tbody = document.getElementById('tabla-body');
+  const vacio = tbody.querySelector('.empty-row');
+  if (vacio) vacio.remove();
+  manualLoteSeq++;
+  const idLote = 'MANUAL-' + Date.now() + '-' + manualLoteSeq;
+  tbody.insertAdjacentHTML('beforeend', filaLoteHTML({id_lote: idLote, lote:'', variedad:''}, true));
 }
 
 // ─── MAPA ─────────────────────────────────────────────────
@@ -284,14 +402,57 @@ function initMap() {
   if (map) return;
   map = L.map('map').setView([-34.5,-63],5);
   addBaseLayers(map);
-  map.on('click', e => {
-    puntoVisita = { lat: e.latlng.lat, lng: e.latlng.lng };
-    if (marker) map.removeLayer(marker);
-    marker = L.marker(e.latlng).addTo(map);
-    const info = document.getElementById('punto-info');
-    info.style.display = 'block';
-    info.innerHTML = `📍 Punto marcado: <strong>${puntoVisita.lat.toFixed(5)}°, ${puntoVisita.lng.toFixed(5)}°</strong>`;
+  polosLayer = L.layerGroup().addTo(map);
+  map.on('click', e => marcarPunto(e.latlng.lat, e.latlng.lng));
+}
+
+function marcarPunto(lat, lng) {
+  puntoVisita = { lat, lng };
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat,lng]).addTo(map);
+  const info = document.getElementById('punto-info');
+  info.style.display = 'block';
+  info.innerHTML = `📍 Punto marcado: <strong>${lat.toFixed(5)}°, ${lng.toFixed(5)}°</strong>`;
+}
+
+function usarUbicacionActual() {
+  if (!navigator.geolocation) { showToast('El navegador no soporta geolocalización', true); return; }
+  showToast('Obteniendo posición satelital...');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const { latitude, longitude } = pos.coords;
+      marcarPunto(latitude, longitude);
+      map.setView([latitude, longitude], 16);
+      showToast('Ubicación actual cargada');
+    },
+    err => showToast('No se pudo obtener la ubicación: ' + err.message, true),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function limpiarPoligonosExistentes() {
+  if (polosLayer) polosLayer.clearLayers();
+}
+
+function dibujarPoligonosExistentes(lotes) {
+  limpiarPoligonosExistentes();
+  if (!polosLayer || !lotes.length) return;
+  const bounds = [];
+  lotes.forEach(l=>{
+    if (!l.poligono_geojson) return;
+    let geojson;
+    try { geojson = JSON.parse(l.poligono_geojson); } catch(e) { return; }
+    const capa = L.geoJSON(geojson, { style:{ color:'#1a56db', weight:2, fillOpacity:.15 }, interactive:false });
+    capa.bindTooltip(l.lote || 'Lote');
+    capa.addTo(polosLayer);
+    const b = capa.getBounds();
+    if (b.isValid()) bounds.push(b);
   });
+  if (bounds.length) {
+    let total = bounds[0];
+    bounds.slice(1).forEach(b=> total.extend(b));
+    map.fitBounds(total, { maxZoom: 15, padding:[20,20] });
+  }
 }
 
 // ─── FOTOS ────────────────────────────────────────────────
@@ -343,10 +504,10 @@ function fileToBase64(file) {
 function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
 
 async function guardarVisita() {
-  const productor   = document.getElementById('sel-productor').value;
-  const campo       = document.getElementById('sel-campo').value;
+  const productor   = valorProductor();
+  const campo       = valorCampo();
   const fechaVisita = document.getElementById('fecha-visita').value;
-  const tecnico     = document.getElementById('tecnico').value.trim();
+  const tecnico     = valorTecnico();
 
   if (!productor || !campo) { showToast('Seleccioná productor y campo',true); return; }
   if (!fechaVisita) { showToast('Indicá la fecha de la visita',true); return; }
@@ -355,6 +516,8 @@ async function guardarVisita() {
   const filas = [];
   document.querySelectorAll('#tabla-body tr[data-id-lote]').forEach(tr=>{
     const get = sel => tr.querySelector(sel);
+    const esManual           = tr.dataset.manual === '1';
+    const loteNombre         = esManual ? (get('.f-lote-nombre').value.trim()) : tr.dataset.lote;
     const sembrado          = get('.f-sembrado').checked;
     const fechaSiembra      = get('.f-fecha-siembra').value;
     const fechaCosecha      = get('.f-fecha-cosecha').value;
@@ -367,11 +530,11 @@ async function guardarVisita() {
     const notas             = get('.f-notas').value.trim();
 
     const algoCompletado = sembrado || fechaSiembra || fechaCosecha || estadoFenologico || estadoMalezas ||
-      resistentes || plagas || condicion || rinde || notas;
+      resistentes || plagas || condicion || rinde || notas || (esManual && loteNombre);
     if (!algoCompletado) return;
 
     filas.push({
-      id_lote: tr.dataset.idLote, lote: tr.dataset.lote,
+      id_lote: tr.dataset.idLote, lote: loteNombre,
       lote_sembrado: sembrado, fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
       estado_fenologico: estadoFenologico,
       estado_malezas: estadoMalezas, malezas_resistentes: resistentes,
@@ -381,6 +544,10 @@ async function guardarVisita() {
   });
 
   if (!filas.length) { showToast('Completá al menos un dato de algún lote antes de guardar',true); return; }
+
+  if (document.getElementById('sel-tecnico').value === OTRO) addExtra('visitas_tecnicos_extra', tecnico);
+  if (document.getElementById('sel-productor').value === OTRO) addExtra('visitas_productores_extra', productor);
+  if (document.getElementById('sel-campo').value === OTRO) addExtraCampo(productor, campo);
 
   const btn = document.getElementById('btn-guardar');
   const original = btn.textContent;
@@ -434,12 +601,19 @@ async function guardarVisita() {
 }
 
 function resetFormulario() {
+  construirProductores();
+  construirTecnicos();
   document.getElementById('sel-productor').value = '';
+  document.getElementById('productor-otro').value = '';
+  document.getElementById('productor-otro').style.display = 'none';
+  document.getElementById('sel-tecnico').value = '';
+  document.getElementById('tecnico-otro').value = '';
+  document.getElementById('tecnico-otro').style.display = 'none';
   onProductorChange();
-  document.getElementById('fecha-visita').value = '';
-  document.getElementById('tecnico').value = '';
+  document.getElementById('fecha-visita').valueAsDate = new Date();
   puntoVisita = null;
   if (marker) { map.removeLayer(marker); marker = null; }
+  limpiarPoligonosExistentes();
   document.getElementById('punto-info').style.display = 'none';
   imagenes = [];
   renderImgList();
