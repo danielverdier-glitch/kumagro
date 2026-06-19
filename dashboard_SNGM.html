@@ -362,31 +362,62 @@ function addBaseLayers(m) {
     {attribution:'',maxZoom:19,opacity:.8}).addTo(m);
 }
 
-function dibujarLotesEnMapa(map, layersArr, datos) {
-  layersArr.forEach(l=>map.removeLayer(l));
-  layersArr.length = 0;
+const UMBRAL_PIN_PX = 26; // si el polígono mide menos de esto en pantalla, se muestra como pin
+
+function dibujarLotesEnMapa(map, itemsArr, datos) {
+  itemsArr.forEach(it=>{ map.removeLayer(it.poly); map.removeLayer(it.marker); });
+  itemsArr.length = 0;
   datos.forEach(l=>{
     if (!l.poligono_geojson) return;
     let geom;
     try { geom = JSON.parse(l.poligono_geojson); } catch(e) { return; }
     if (!geom || !geom.coordinates) return;
     const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
-    const layer = L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:1.5}).addTo(map);
-    layer.bindTooltip(`<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad} · ${l.area_ha} ha</span>`,{sticky:true});
-    layersArr.push(layer);
+    const tooltipHtml = `<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad} · ${l.area_ha} ha</span>`;
+
+    const poly = L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:1.5});
+    poly.bindTooltip(tooltipHtml,{sticky:true});
+
+    const lat = parseFloat(l.latitud_centroide), lng = parseFloat(l.longitud_centroide);
+    const centro = (!isNaN(lat) && !isNaN(lng)) ? [lat,lng] : poly.getBounds().getCenter();
+    const marker = L.circleMarker(centro,{radius:6,color:'#1a56db',fillColor:'#1a56db',fillOpacity:.85,weight:1.5});
+    marker.bindTooltip(tooltipHtml,{sticky:true});
+
+    poly.addTo(map);
+    itemsArr.push({ poly, marker, bounds: poly.getBounds() });
   });
-  if (layersArr.length) {
-    map.fitBounds(L.featureGroup(layersArr).getBounds(),{padding:[30,30]});
+
+  if (itemsArr.length) {
+    map.fitBounds(L.featureGroup(itemsArr.map(it=>it.poly)).getBounds(),{padding:[30,30]});
   } else {
     map.setView([-34.5,-63],5);
   }
   map.invalidateSize();
+  ajustarPines(map, itemsArr);
+}
+
+function ajustarPines(map, itemsArr) {
+  itemsArr.forEach(it=>{
+    const sw = map.latLngToContainerPoint(it.bounds.getSouthWest());
+    const ne = map.latLngToContainerPoint(it.bounds.getNorthEast());
+    const anchoPx = Math.abs(ne.x - sw.x);
+    const altoPx  = Math.abs(sw.y - ne.y);
+    const esChico = Math.max(anchoPx, altoPx) < UMBRAL_PIN_PX;
+    if (esChico) {
+      if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+      if (!map.hasLayer(it.marker)) it.marker.addTo(map);
+    } else {
+      if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+      if (!map.hasLayer(it.poly)) it.poly.addTo(map);
+    }
+  });
 }
 
 function renderMapaMini(datos) {
   if (!mapMini) {
     mapMini = L.map('map-mini').setView([-34.5,-63],5);
     addBaseLayers(mapMini);
+    mapMini.on('zoomend', () => ajustarPines(mapMini, layersMini));
   }
   dibujarLotesEnMapa(mapMini, layersMini, datos);
 }
@@ -395,6 +426,7 @@ function renderMapaLotes(datos) {
   if (!mapLotes) {
     mapLotes = L.map('map-lotes').setView([-34.5,-63],5);
     addBaseLayers(mapLotes);
+    mapLotes.on('zoomend', () => ajustarPines(mapLotes, layersLotes));
   }
   dibujarLotesEnMapa(mapLotes, layersLotes, datos);
 }
@@ -450,23 +482,54 @@ function renderRanking(containerId, datos, campo) {
     </div>`).join('');
 }
 
+// Ordena las fechas según el calendario de campaña: 1-sep ... 31-dic, 1-ene ... 15-feb
+function ordenCampana(fechaISO) {
+  const [, mesStr, diaStr] = fechaISO.split('-');
+  const mes = Number(mesStr), dia = Number(diaStr);
+  return mes >= 9 ? (mes * 100 + dia) : ((mes + 12) * 100 + dia);
+}
+
 function renderLineaSiembras(datos) {
+  const INICIO_KEY = 9 * 100 + 1;     // 1-sep
+  const FIN_KEY     = (2 + 12) * 100 + 15; // 15-feb
+
   const porFecha = {};
-  datos.forEach(l => { if (l.fecha_siembra_estimada) porFecha[l.fecha_siembra_estimada] = (porFecha[l.fecha_siembra_estimada]||0) + l.area_ha; });
-  const fechas = Object.keys(porFecha).sort();
-  const valores = fechas.map(f=>porFecha[f]);
+  datos.forEach(l => {
+    if (!l.fecha_siembra_estimada) return;
+    const key = ordenCampana(l.fecha_siembra_estimada);
+    if (key < INICIO_KEY || key > FIN_KEY) return;
+    porFecha[key] = (porFecha[key] || 0) + (l.area_ha || 0);
+  });
+
+  const claves = Object.keys(porFecha).map(Number).sort((a,b)=>a-b);
+
+  const keyAFecha = (key) => {
+    const mesReal = key >= INICIO_KEY ? Math.floor(key/100) : Math.floor(key/100) - 12;
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${String(mesReal).padStart(2,'0')}`;
+  };
+
+  let acumulado = 0;
+  const puntos = [{ x: INICIO_KEY, y: 0 }];
+  claves.forEach(k => { acumulado += porFecha[k]; puntos.push({ x: k, y: acumulado }); });
+  if (!claves.length || claves[claves.length-1] !== FIN_KEY) {
+    puntos.push({ x: FIN_KEY, y: acumulado });
+  }
+
+  const labels  = puntos.map(p => keyAFecha(p.x));
+  const valores = puntos.map(p => p.y);
 
   if (charts.linea) charts.linea.destroy();
   charts.linea = new Chart(document.getElementById('chart-linea'), {
     type: 'line',
-    data: { labels: fechas, datasets:[{
+    data: { labels, datasets:[{
       data: valores, borderColor:'#3a6b2a', backgroundColor:'rgba(58,107,42,0.15)',
-      fill:true, tension:.3, pointRadius:2
+      fill:true, tension:.3, pointRadius:2, stepped:false
     }]},
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } },
-      scales:{ x:{ ticks:{ font:{size:10} } }, y:{ ticks:{ font:{size:10} }, title:{display:true,text:'ha',font:{size:10}} } }
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha acumuladas` } } },
+      scales:{ x:{ ticks:{ font:{size:10} } }, y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:'ha acumuladas',font:{size:10}} } }
     }
   });
 }
