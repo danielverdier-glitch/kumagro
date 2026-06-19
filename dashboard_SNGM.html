@@ -137,6 +137,7 @@
       <button class="tab-btn active" onclick="switchDashTab('principal')">Principal</button>
       <button class="tab-btn" onclick="switchDashTab('mapa')">Mapa de lotes</button>
       <button class="tab-btn" onclick="switchDashTab('comparativo')">Comparativo entre campañas</button>
+      <button class="tab-btn" onclick="switchDashTab('visitas')">Visitas</button>
       <button class="tab-btn" onclick="switchDashTab('seguimiento')">Seguimiento</button>
     </div>
 
@@ -195,8 +196,8 @@
       </div>
     </div>
 
-    <!-- TAB SEGUIMIENTO -->
-    <div class="tab-panel" id="tab-seguimiento">
+    <!-- TAB VISITAS -->
+    <div class="tab-panel" id="tab-visitas">
       <div class="card">
         <div class="card-title">Última visita registrada por lote</div>
         <div class="table-wrap">
@@ -213,6 +214,14 @@
             <tbody id="tabla-seguimiento-body"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- TAB SEGUIMIENTO (en construcción) -->
+    <div class="tab-panel" id="tab-seguimiento">
+      <div class="card">
+        <div class="card-title">Seguimiento</div>
+        <p style="font-size:13px;color:var(--text-soft)">Esta sección está en construcción. Próximamente vas a poder ver acá el seguimiento evolutivo de cada lote.</p>
       </div>
     </div>
 
@@ -378,7 +387,7 @@ function switchDashTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const idx = {principal:0,mapa:1,comparativo:2,seguimiento:3}[tab];
+  const idx = {principal:0,mapa:1,comparativo:2,visitas:3,seguimiento:4}[tab];
   document.querySelectorAll('.tabs .tab-btn')[idx].classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   renderTabActiva();
@@ -389,7 +398,7 @@ function renderTabActiva() {
   if (activeTab === 'principal')      renderPrincipal(datos);
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
-  if (activeTab === 'seguimiento')    renderSeguimiento(datos);
+  if (activeTab === 'visitas')        renderSeguimiento(datos);
 }
 
 // ─── TAB SEGUIMIENTO ──────────────────────────────────────

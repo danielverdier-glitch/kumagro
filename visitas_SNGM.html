@@ -487,9 +487,9 @@ function sanitizarNombreArchivo(nombre) {
     .replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || 'sd';
 }
 
-function fechaADDMMAA(fechaISO) {
+function fechaADDMMAAAA(fechaISO) {
   const [y,m,d] = fechaISO.split('-');
-  return d + m + y.slice(2);
+  return d + m + y;
 }
 
 function fileToBase64(file) {
@@ -556,7 +556,8 @@ async function guardarVisita() {
 
   try {
     const idVisita  = 'VIS-' + Date.now();
-    const baseNombre = [productor, campo].map(sanitizarNombreArchivo).join('_') + '_visita-' + fechaADDMMAA(fechaVisita);
+    const tecnicoPrefijo = sanitizarNombreArchivo(tecnico).slice(0,3).toUpperCase() || 'SD';
+    const baseNombre = [tecnicoPrefijo, sanitizarNombreArchivo(productor), sanitizarNombreArchivo(campo), fechaADDMMAAAA(fechaVisita)].join('_');
     const nombresImagenes = [];
 
     for (let i = 0; i < imagenes.length; i++) {
