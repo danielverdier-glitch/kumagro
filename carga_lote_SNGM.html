@@ -262,6 +262,52 @@ let drawnItems=null;
 let lotesAgregados  = [];
 let resumenLayers   = [];
 
+// ─── COLOR POR CAMPAÑA / PINES EN ZOOM CHICO ──────────────
+const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
+let campanaColorMap = {};
+function colorCampana(c) {
+  if (!(c in campanaColorMap)) {
+    campanaColorMap[c] = PALETA_CAMPANAS[Object.keys(campanaColorMap).length % PALETA_CAMPANAS.length];
+  }
+  return campanaColorMap[c];
+}
+
+const UMBRAL_PIN_PX = 26; // si el polígono mide menos de esto en pantalla, se muestra como pin
+
+function ajustarPinesLote(map, itemsArr) {
+  itemsArr.forEach(it=>{
+    const sw = map.latLngToContainerPoint(it.bounds.getSouthWest());
+    const ne = map.latLngToContainerPoint(it.bounds.getNorthEast());
+    const anchoPx = Math.abs(ne.x - sw.x);
+    const altoPx  = Math.abs(sw.y - ne.y);
+    const esChico = Math.max(anchoPx, altoPx) < UMBRAL_PIN_PX;
+    if (esChico) {
+      if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+      if (!map.hasLayer(it.marker)) it.marker.addTo(map);
+    } else {
+      if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+      if (!map.hasLayer(it.poly)) it.poly.addTo(map);
+    }
+  });
+}
+
+function crearItemLote(lote) {
+  const geom = JSON.parse(lote.poligono_geojson);
+  const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+  const color = colorCampana(lote.campana);
+  const tooltipHtml = `<strong>${lote.nombre_campo}</strong>${lote.lote?' · '+lote.lote:''}<br>${lote.productor}<br><span style="color:#555">${lote.variedad}</span>`;
+
+  const poly = L.polygon(ll,{color,fillColor:color,fillOpacity:.5,weight:2});
+  poly.bindTooltip(tooltipHtml,{sticky:true});
+
+  const lat = parseFloat(lote.latitud_centroide), lng = parseFloat(lote.longitud_centroide);
+  const centro = (!isNaN(lat) && !isNaN(lng)) ? [lat,lng] : poly.getBounds().getCenter();
+  const marker = L.circleMarker(centro,{radius:6,color,fillColor:color,fillOpacity:.85,weight:2});
+  marker.bindTooltip(tooltipHtml,{sticky:true});
+
+  return { poly, marker, bounds: poly.getBounds() };
+}
+
 // ─── VERIFICAR CONFIG ─────────────────────────────────────
 function checkConfig() {
   const sb = document.getElementById('status-bar');
@@ -346,6 +392,7 @@ function initMapResumen() {
   if (mapResumen) return;
   mapResumen = L.map('map-resumen').setView([-34.5,-63],5);
   addBaseLayers(mapResumen);
+  mapResumen.on('zoomend', () => ajustarPinesLote(mapResumen, resumenLayers));
 }
 
 // ─── BUSCADOR EN MAPA ─────────────────────────────────────
@@ -622,14 +669,13 @@ function formatFecha(f) {
 // ─── MAPA RESUMEN ─────────────────────────────────────────
 function agregarAlMapaResumen(lote) {
   initMapResumen();
-  const geom=JSON.parse(lote.poligono_geojson);
-  const ll=geom.coordinates[0].map(p=>[p[1],p[0]]);
-  const layer=L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}).addTo(mapResumen);
-  layer.bindTooltip(`<strong>${lote.nombre_campo}</strong>${lote.lote?' · '+lote.lote:''}<br>${lote.productor}<br><span style="color:#555">${lote.variedad}</span>`,{sticky:true});
-  resumenLayers.push(layer);
-  const group=L.featureGroup(resumenLayers);
+  const item = crearItemLote(lote);
+  item.poly.addTo(mapResumen);
+  resumenLayers.push(item);
+  const group=L.featureGroup(resumenLayers.map(it=>it.poly));
   mapResumen.fitBounds(group.getBounds(),{padding:[40,40]});
   mapResumen.invalidateSize();
+  ajustarPinesLote(mapResumen, resumenLayers);
 }
 
 // ─── GUARDAR EN DRIVE ─────────────────────────────────────
@@ -740,18 +786,21 @@ function mostrarPaginaGracias() {
   if (!window.mapGracias) {
     window.mapGracias = L.map('map-gracias').setView([-34.5,-63],5);
     addBaseLayers(window.mapGracias);
+    window.graciasLayers = [];
+    window.mapGracias.on('zoomend', () => ajustarPinesLote(window.mapGracias, window.graciasLayers));
   }
   window.mapGracias.invalidateSize();
-  const layers = lotesAgregados.map(l=>{
-    const geom = JSON.parse(l.poligono_geojson);
-    const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
-    const layer = L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:2}).addTo(window.mapGracias);
-    layer.bindTooltip(`<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad}</span>`,{sticky:true});
-    return layer;
+  window.graciasLayers.forEach(it=>{ window.mapGracias.removeLayer(it.poly); window.mapGracias.removeLayer(it.marker); });
+  window.graciasLayers.length = 0;
+  lotesAgregados.forEach(l=>{
+    const item = crearItemLote(l);
+    item.poly.addTo(window.mapGracias);
+    window.graciasLayers.push(item);
   });
-  if (layers.length) {
-    window.mapGracias.fitBounds(L.featureGroup(layers).getBounds(),{padding:[40,40]});
+  if (window.graciasLayers.length) {
+    window.mapGracias.fitBounds(L.featureGroup(window.graciasLayers.map(it=>it.poly)).getBounds(),{padding:[40,40]});
   }
+  ajustarPinesLote(window.mapGracias, window.graciasLayers);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
