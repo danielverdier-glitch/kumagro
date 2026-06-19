@@ -854,6 +854,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 const SHEET_ID     = '1_IslJKixdyIbuYZf88pEdz3kXqDfDCWMoHENSDq3Mf4';
 const KMZ_FOLDER   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
+const IMG_FOLDER   = 'TU_ID_DE_CARPETA_DE_IMAGENES_AQUI'; // carpeta de Drive para fotos de visitas
 
 function doPost(e) {
   try {
@@ -885,6 +886,39 @@ function doPost(e) {
       folder.createFile(blob);
     }
 
+    // Usado por visitas_SNGM.html para subir fotos de la visita
+    if (payload.action === 'uploadImagen') {
+      const folder  = DriveApp.getFolderById(IMG_FOLDER);
+      const decoded = Utilities.base64Decode(payload.base64);
+      const blob    = Utilities.newBlob(decoded, payload.mimeType, payload.filename);
+      folder.createFile(blob);
+    }
+
+    // Usado por visitas_SNGM.html para registrar una visita a un lote.
+    // Se guarda una fila por cada lote visitado; varias filas pueden
+    // compartir el mismo id_visita (misma visita, varios lotes del mismo campo).
+    if (payload.action === 'appendVisita') {
+      const d = payload.data;
+      const ss = SpreadsheetApp.openById(SHEET_ID);
+      let sheet = ss.getSheetByName('Visitas');
+      if (!sheet) sheet = ss.insertSheet('Visitas');
+
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['id_visita','fecha_visita','tecnico','productor','nombre_campo',
+          'id_lote','lote','lat_visita','lng_visita','fecha_siembra','estado_fenologico',
+          'estado_malezas','malezas_resistentes','observacion_plagas','condicion_cultivo',
+          'rinde_estimado_qqha','notas','imagenes','fecha_carga']);
+      }
+
+      sheet.appendRow([
+        d.id_visita, d.fecha_visita, d.tecnico||'', d.productor, d.nombre_campo,
+        d.id_lote, d.lote||'', d.lat_visita, d.lng_visita, d.fecha_siembra||'',
+        d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
+        d.observacion_plagas||'', d.condicion_cultivo||'', d.rinde_estimado_qqha||'',
+        d.notas||'', d.imagenes||'', d.fecha_carga
+      ]);
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({status:'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -896,10 +930,16 @@ function doPost(e) {
   }
 }
 
-// Usado por el dashboard (dashboard_SNGM.html) para leer todos los lotes.
+// Usado por dashboard_SNGM.html (?action=getLotes) y visitas_SNGM.html (?action=getVisitas).
 function doGet(e) {
-  const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
-  const rows  = sheet.getDataRange().getValues();
+  const action = (e.parameter && e.parameter.action) || 'getLotes';
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sheet = action === 'getVisitas' ? ss.getSheetByName('Visitas') : ss.getActiveSheet();
+
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+  }
+  const rows = sheet.getDataRange().getValues();
   if (rows.length < 2) {
     return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
   }
@@ -914,13 +954,19 @@ function doGet(e) {
 
 ─────────────────────────────────────────────────────────────────
 PASOS:
-1. Abrí Lotes_SNGM en Drive → Extensiones → Apps Script
-2. Borrá el código existente y pegá el de arriba
-3. Clic en Implementar → Nueva implementación
-   · Tipo: Aplicación web
-   · Ejecutar como: Yo
-   · Acceso: Cualquier persona
-4. Copiá la URL y pegala en este HTML reemplazando 'TU_APPS_SCRIPT_URL_AQUI'
+1. Creá en Drive una carpeta nueva para las fotos de visitas y copiá su ID
+   (es el texto después de /folders/ en la URL de la carpeta).
+2. Pegá ese ID en la constante IMG_FOLDER de arriba, reemplazando
+   'TU_ID_DE_CARPETA_DE_IMAGENES_AQUI'.
+3. Abrí Lotes_SNGM en Drive → Extensiones → Apps Script
+4. Borrá el código existente y pegá el de arriba (no hace falta crear la
+   hoja "Visitas" a mano: se crea sola la primera vez que se guarda una visita)
+5. Clic en Implementar → Gestionar implementaciones → editar (lápiz) →
+   Nueva versión → Implementar
+   (si es la primera vez: Implementar → Nueva implementación
+    · Tipo: Aplicación web · Ejecutar como: Yo · Acceso: Cualquier persona)
+6. Copiá la URL del Web App y pegala en APPS_SCRIPT_URL de este HTML,
+   de dashboard_SNGM.html y de visitas_SNGM.html.
 ─────────────────────────────────────────────────────────────────
 -->
 </body>

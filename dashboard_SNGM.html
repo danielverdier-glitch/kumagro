@@ -82,6 +82,14 @@
   .rank-val{min-width:78px;text-align:right;font-weight:700;color:var(--text)}
   .empty-msg{text-align:center;color:var(--text-soft);font-style:italic;font-size:13px;padding:20px}
 
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:var(--gh-green-light)}
+  tbody td{padding:9px 12px;color:var(--text);vertical-align:middle;white-space:nowrap}
+
   #map-mini{height:460px;border-radius:8px;border:1.5px solid var(--border)}
   #map-lotes{height:560px;border-radius:8px;border:1.5px solid var(--border)}
   .chart-wrap{position:relative}
@@ -190,10 +198,19 @@
     <!-- TAB SEGUIMIENTO -->
     <div class="tab-panel" id="tab-seguimiento">
       <div class="card">
-        <div class="dev-placeholder">
-          <div class="icon">🚧</div>
-          <strong>Seguimiento</strong>
-          En desarrollo.
+        <div class="card-title">Última visita registrada por lote</div>
+        <div class="table-wrap">
+          <table id="tabla-seguimiento">
+            <thead>
+              <tr>
+                <th>Productor</th><th>Campo</th><th>Lote</th><th>Fecha visita</th>
+                <th>Fecha siembra</th><th>Est. fenológico</th><th>Est. malezas</th>
+                <th>Resistentes</th><th>Plagas / enfermedades</th><th>Condición</th>
+                <th>Rinde est.</th><th>Notas</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-seguimiento-body"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -212,6 +229,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwl68rpk2IpG6Eh
 
 // ─── ESTADO ───────────────────────────────────────────────
 let allLotes   = [];
+let allVisitas = [];
 let activeTab  = 'principal';
 let filtros    = { campana:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
 let mapMini=null, mapLotes=null;
@@ -239,9 +257,14 @@ const FILTROS_DEF = [
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
   try {
-    const res  = await fetch(APPS_SCRIPT_URL + '?action=getLotes');
-    const data = await res.json();
-    allLotes = (Array.isArray(data) ? data : []).map(normalizarLote);
+    const [resLotes, resVisitas] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+    ]);
+    const data    = await resLotes.json();
+    const visitas = await resVisitas.json();
+    allLotes   = (Array.isArray(data) ? data : []).map(normalizarLote);
+    allVisitas = Array.isArray(visitas) ? visitas : [];
     construirColoresCampana();
     document.getElementById('loading-bar').style.display = 'none';
   } catch(e) {
@@ -365,6 +388,48 @@ function renderTabActiva() {
   if (activeTab === 'principal')      renderPrincipal(datos);
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
+  if (activeTab === 'seguimiento')    renderSeguimiento(datos);
+}
+
+// ─── TAB SEGUIMIENTO ──────────────────────────────────────
+function renderSeguimiento(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!idsVisibles.has(v.id_lote)) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || v.fecha_visita > actual.fecha_visita) ultimaPorLote[v.id_lote] = v;
+  });
+
+  const filas = Object.values(ultimaPorLote).sort((a,b)=> (b.fecha_visita||'').localeCompare(a.fecha_visita||''));
+  const tbody = document.getElementById('tabla-seguimiento-body');
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">Todavía no hay visitas registradas para los lotes filtrados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(v=>`
+    <tr>
+      <td>${v.productor||'—'}</td>
+      <td>${v.nombre_campo||'—'}</td>
+      <td>${v.lote||'—'}</td>
+      <td>${formatFechaCorta(v.fecha_visita)}</td>
+      <td>${formatFechaCorta(v.fecha_siembra)}</td>
+      <td>${v.estado_fenologico||'—'}</td>
+      <td>${v.estado_malezas||'—'}</td>
+      <td>${(v.malezas_resistentes===true||v.malezas_resistentes===1||v.malezas_resistentes==='1')?'Sí':'No'}</td>
+      <td>${v.observacion_plagas||'—'}</td>
+      <td>${v.condicion_cultivo||'—'}</td>
+      <td>${v.rinde_estimado_qqha||'—'}</td>
+      <td>${v.notas||'—'}</td>
+    </tr>`).join('');
+}
+
+function formatFechaCorta(f) {
+  if (!f) return '—';
+  const iso = aFechaISO(f);
+  if (!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
 }
 
 // ─── MAPAS ────────────────────────────────────────────────
