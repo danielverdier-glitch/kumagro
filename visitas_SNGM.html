@@ -543,7 +543,16 @@ async function guardarVisita() {
     });
   });
 
-  if (!filas.length) { showToast('Completá al menos un dato de algún lote antes de guardar',true); return; }
+  if (!filas.length && !imagenes.length) { showToast('Completá al menos un dato de algún lote, o subí al menos una foto, antes de guardar',true); return; }
+
+  if (!filas.length) {
+    filas.push({
+      id_lote: '', lote: '',
+      lote_sembrado: false, fecha_siembra: '', fecha_cosecha_estimada: '',
+      estado_fenologico: '', estado_malezas: '', malezas_resistentes: false,
+      observacion_plagas: '', condicion_cultivo: '', rinde_estimado_qqha: '', notas: ''
+    });
+  }
 
   if (document.getElementById('sel-tecnico').value === OTRO) addExtra('visitas_tecnicos_extra', tecnico);
   if (document.getElementById('sel-productor').value === OTRO) addExtra('visitas_productores_extra', productor);
