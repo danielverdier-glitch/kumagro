@@ -204,7 +204,8 @@
             <thead>
               <tr>
                 <th>Productor</th><th>Campo</th><th>Lote</th><th>Fecha visita</th>
-                <th>Fecha siembra</th><th>Est. fenológico</th><th>Est. malezas</th>
+                <th>¿Sembrado?</th><th>Fecha siembra</th><th>Fecha est. cosecha</th>
+                <th>Est. fenológico</th><th>Est. malezas</th>
                 <th>Resistentes</th><th>Plagas / enfermedades</th><th>Condición</th>
                 <th>Rinde est.</th><th>Notas</th>
               </tr>
@@ -404,7 +405,7 @@ function renderSeguimiento(datos) {
   const filas = Object.values(ultimaPorLote).sort((a,b)=> (b.fecha_visita||'').localeCompare(a.fecha_visita||''));
   const tbody = document.getElementById('tabla-seguimiento-body');
   if (!filas.length) {
-    tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">Todavía no hay visitas registradas para los lotes filtrados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Todavía no hay visitas registradas para los lotes filtrados</td></tr>';
     return;
   }
   tbody.innerHTML = filas.map(v=>`
@@ -413,7 +414,9 @@ function renderSeguimiento(datos) {
       <td>${v.nombre_campo||'—'}</td>
       <td>${v.lote||'—'}</td>
       <td>${formatFechaCorta(v.fecha_visita)}</td>
+      <td>${(v.lote_sembrado===true||v.lote_sembrado===1||v.lote_sembrado==='1')?'Sí':'No'}</td>
       <td>${formatFechaCorta(v.fecha_siembra)}</td>
+      <td>${formatFechaCorta(v.fecha_cosecha_estimada)}</td>
       <td>${v.estado_fenologico||'—'}</td>
       <td>${v.estado_malezas||'—'}</td>
       <td>${(v.malezas_resistentes===true||v.malezas_resistentes===1||v.malezas_resistentes==='1')?'Sí':'No'}</td>

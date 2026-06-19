@@ -143,13 +143,13 @@
       <table id="tabla-lotes">
         <thead>
           <tr>
-            <th>Lote</th><th>Variedad</th><th>Fecha siembra</th>
+            <th>¿Sembrado?</th><th>Lote</th><th>Variedad</th><th>Fecha siembra</th><th>Fecha est. cosecha</th>
             <th>Estado fenológico</th><th>Estado malezas</th><th>¿Resistentes?</th>
             <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th><th>Notas</th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="10">Elegí un productor y un campo para ver sus lotes</td></tr>
+          <tr class="empty-row"><td colspan="12">Elegí un productor y un campo para ver sus lotes</td></tr>
         </tbody>
       </table>
     </div>
@@ -228,7 +228,7 @@ function onCampoChange() {
 }
 
 function ultimaVisitaDeLote(idLote) {
-  const visitas = allVisitas.filter(v=>v.id_lote===idLote && v.fecha_siembra);
+  const visitas = allVisitas.filter(v=>v.id_lote===idLote);
   if (!visitas.length) return null;
   return visitas.reduce((a,b)=> (a.fecha_visita > b.fecha_visita ? a : b));
 }
@@ -236,17 +236,21 @@ function ultimaVisitaDeLote(idLote) {
 function renderTablaLotes(lotes) {
   const tbody = document.getElementById('tabla-body');
   if (!lotes.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Elegí un productor y un campo para ver sus lotes</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">Elegí un productor y un campo para ver sus lotes</td></tr>';
     return;
   }
   tbody.innerHTML = lotes.map(l=>{
     const ultima = ultimaVisitaDeLote(l.id_lote);
-    const fechaSiembraPrevia = ultima ? ultima.fecha_siembra : '';
+    const fechaSiembraPrevia  = ultima ? (ultima.fecha_siembra || '') : '';
+    const fechaCosechaPrevia  = ultima ? (ultima.fecha_cosecha_estimada || '') : '';
+    const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
     return `
     <tr data-id-lote="${escAttr(l.id_lote)}" data-lote="${escAttr(l.lote||'')}" data-variedad="${escAttr(l.variedad||'')}">
+      <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
       <td><strong>${l.lote||'—'}</strong></td>
       <td>${l.variedad||'—'}</td>
       <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
+      <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
       <td>
         <select class="f-estado-fenologico">
           <option value="">—</option>
@@ -351,7 +355,9 @@ async function guardarVisita() {
   const filas = [];
   document.querySelectorAll('#tabla-body tr[data-id-lote]').forEach(tr=>{
     const get = sel => tr.querySelector(sel);
+    const sembrado          = get('.f-sembrado').checked;
     const fechaSiembra      = get('.f-fecha-siembra').value;
+    const fechaCosecha      = get('.f-fecha-cosecha').value;
     const estadoFenologico  = get('.f-estado-fenologico').value;
     const estadoMalezas     = get('.f-estado-malezas').value.trim();
     const resistentes       = get('.f-resistentes').checked;
@@ -360,13 +366,14 @@ async function guardarVisita() {
     const rinde             = get('.f-rinde').value;
     const notas             = get('.f-notas').value.trim();
 
-    const algoCompletado = fechaSiembra || estadoFenologico || estadoMalezas || resistentes ||
-      plagas || condicion || rinde || notas;
+    const algoCompletado = sembrado || fechaSiembra || fechaCosecha || estadoFenologico || estadoMalezas ||
+      resistentes || plagas || condicion || rinde || notas;
     if (!algoCompletado) return;
 
     filas.push({
       id_lote: tr.dataset.idLote, lote: tr.dataset.lote,
-      fecha_siembra: fechaSiembra, estado_fenologico: estadoFenologico,
+      lote_sembrado: sembrado, fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
+      estado_fenologico: estadoFenologico,
       estado_malezas: estadoMalezas, malezas_resistentes: resistentes,
       observacion_plagas: plagas, condicion_cultivo: condicion,
       rinde_estimado_qqha: rinde, notas

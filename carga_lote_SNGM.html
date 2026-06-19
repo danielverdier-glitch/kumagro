@@ -905,15 +905,15 @@ function doPost(e) {
 
       if (sheet.getLastRow() === 0) {
         sheet.appendRow(['id_visita','fecha_visita','tecnico','productor','nombre_campo',
-          'id_lote','lote','lat_visita','lng_visita','fecha_siembra','estado_fenologico',
-          'estado_malezas','malezas_resistentes','observacion_plagas','condicion_cultivo',
-          'rinde_estimado_qqha','notas','imagenes','fecha_carga']);
+          'id_lote','lote','lat_visita','lng_visita','lote_sembrado','fecha_siembra',
+          'fecha_cosecha_estimada','estado_fenologico','estado_malezas','malezas_resistentes',
+          'observacion_plagas','condicion_cultivo','rinde_estimado_qqha','notas','imagenes','fecha_carga']);
       }
 
       sheet.appendRow([
         d.id_visita, d.fecha_visita, d.tecnico||'', d.productor, d.nombre_campo,
-        d.id_lote, d.lote||'', d.lat_visita, d.lng_visita, d.fecha_siembra||'',
-        d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
+        d.id_lote, d.lote||'', d.lat_visita, d.lng_visita, d.lote_sembrado?1:0, d.fecha_siembra||'',
+        d.fecha_cosecha_estimada||'', d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
         d.observacion_plagas||'', d.condicion_cultivo||'', d.rinde_estimado_qqha||'',
         d.notas||'', d.imagenes||'', d.fecha_carga
       ]);
