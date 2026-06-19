@@ -189,10 +189,56 @@ const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena',
 const TECNICOS_BASE = ['Daniel','M. Victoria','Nano'];
 const OTRO = '__otro__';
 
+const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
+let campanaColorMap = {};
+function colorCampana(c) {
+  if (!(c in campanaColorMap)) {
+    campanaColorMap[c] = PALETA_CAMPANAS[Object.keys(campanaColorMap).length % PALETA_CAMPANAS.length];
+  }
+  return campanaColorMap[c];
+}
+
+const UMBRAL_PIN_PX = 26; // si el polígono mide menos de esto en pantalla, se muestra como pin
+
+function ajustarPinesLote(map, itemsArr) {
+  itemsArr.forEach(it=>{
+    const sw = map.latLngToContainerPoint(it.bounds.getSouthWest());
+    const ne = map.latLngToContainerPoint(it.bounds.getNorthEast());
+    const anchoPx = Math.abs(ne.x - sw.x);
+    const altoPx  = Math.abs(sw.y - ne.y);
+    const esChico = Math.max(anchoPx, altoPx) < UMBRAL_PIN_PX;
+    if (esChico) {
+      if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+      if (!map.hasLayer(it.marker)) it.marker.addTo(map);
+    } else {
+      if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+      if (!map.hasLayer(it.poly)) it.poly.addTo(map);
+    }
+  });
+}
+
+function crearItemLotePoligono(lote) {
+  const geom = JSON.parse(lote.poligono_geojson);
+  const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+  const color = colorCampana(lote.campana);
+  const tooltipHtml = `<strong>${lote.nombre_campo}</strong>${lote.lote?' · '+lote.lote:''}<br>${lote.productor}<br><span style="color:#555">${lote.variedad||''}</span>`;
+
+  const poly = L.polygon(ll,{color,fillColor:color,fillOpacity:.5,weight:2,interactive:false});
+  poly.bindTooltip(tooltipHtml,{sticky:true});
+
+  const lat = parseFloat(lote.latitud_centroide), lng = parseFloat(lote.longitud_centroide);
+  const centro = (!isNaN(lat) && !isNaN(lng)) ? [lat,lng] : poly.getBounds().getCenter();
+  const marker = L.circleMarker(centro,{radius:6,color,fillColor:color,fillOpacity:.85,weight:2,interactive:false});
+  marker.bindTooltip(tooltipHtml,{sticky:true});
+
+  return { poly, marker, bounds: poly.getBounds() };
+}
+
 // ─── ESTADO ───────────────────────────────────────────────
 let allLotes   = [];
 let allVisitas = [];
-let map = null, marker = null, polosLayer = null;
+let map = null, marker = null;
+let poligonosLotesItems = [];
 let puntoVisita = null; // {lat,lng}
 let imagenes = []; // File[]
 let manualLoteSeq = 0;
@@ -324,16 +370,24 @@ function onCampoChange() {
   dibujarPoligonosExistentes(lotes);
 }
 
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
 function ultimaVisitaDeLote(idLote) {
   const visitas = allVisitas.filter(v=>v.id_lote===idLote);
   if (!visitas.length) return null;
-  return visitas.reduce((a,b)=> (a.fecha_visita > b.fecha_visita ? a : b));
+  return visitas.reduce((a,b)=> (aFechaISO(a.fecha_visita) > aFechaISO(b.fecha_visita) ? a : b));
 }
 
 function filaLoteHTML(l, manual) {
   const ultima = manual ? null : ultimaVisitaDeLote(l.id_lote);
-  const fechaSiembraPrevia  = ultima ? (ultima.fecha_siembra || '') : '';
-  const fechaCosechaPrevia  = ultima ? (ultima.fecha_cosecha_estimada || '') : '';
+  const fechaSiembraPrevia  = ultima ? aFechaISO(ultima.fecha_siembra) : '';
+  const fechaCosechaPrevia  = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
   const loteCelda = manual
     ? `<input type="text" class="f-lote-nombre" placeholder="Lote" value="${escAttr(l.lote||'')}" style="min-width:80px">`
@@ -402,8 +456,8 @@ function initMap() {
   if (map) return;
   map = L.map('map').setView([-34.5,-63],5);
   addBaseLayers(map);
-  polosLayer = L.layerGroup().addTo(map);
   map.on('click', e => marcarPunto(e.latlng.lat, e.latlng.lng));
+  map.on('zoomend', () => ajustarPinesLote(map, poligonosLotesItems));
 }
 
 function marcarPunto(lat, lng) {
@@ -431,23 +485,25 @@ function usarUbicacionActual() {
 }
 
 function limpiarPoligonosExistentes() {
-  if (polosLayer) polosLayer.clearLayers();
+  poligonosLotesItems.forEach(it=>{
+    if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+    if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+  });
+  poligonosLotesItems = [];
 }
 
 function dibujarPoligonosExistentes(lotes) {
   limpiarPoligonosExistentes();
-  if (!polosLayer || !lotes.length) return;
+  if (!lotes.length) return;
   const bounds = [];
   lotes.forEach(l=>{
     if (!l.poligono_geojson) return;
-    let geojson;
-    try { geojson = JSON.parse(l.poligono_geojson); } catch(e) { return; }
-    const capa = L.geoJSON(geojson, { style:{ color:'#1a56db', weight:2, fillOpacity:.15 }, interactive:false });
-    capa.bindTooltip(l.lote || 'Lote');
-    capa.addTo(polosLayer);
-    const b = capa.getBounds();
-    if (b.isValid()) bounds.push(b);
+    let item;
+    try { item = crearItemLotePoligono(l); } catch(e) { return; }
+    poligonosLotesItems.push(item);
+    if (item.bounds.isValid()) bounds.push(item.bounds);
   });
+  ajustarPinesLote(map, poligonosLotesItems);
   if (bounds.length) {
     let total = bounds[0];
     bounds.slice(1).forEach(b=> total.extend(b));
