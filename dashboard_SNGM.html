@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Dashboard SNGM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --lote-blue:#1a56db; --lote-blue-fill:rgba(26,86,219,0.5);
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+
+  .dash-layout{display:flex;align-items:flex-start}
+  .sidebar{width:260px;min-width:260px;background:var(--surface);border-right:1px solid var(--border);
+    position:sticky;top:0;height:100vh;overflow-y:auto;padding:22px 18px 40px}
+  .sidebar h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gh-green-dark);margin-bottom:18px}
+  .filter-group{margin-bottom:22px}
+  .filter-group h4{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--gh-green);margin-bottom:8px;padding-bottom:6px;border-bottom:1.5px solid var(--gh-green-light);display:flex;justify-content:space-between;align-items:center}
+  .filter-group h4 .count{font-weight:600;color:var(--text-soft);font-size:10px;text-transform:none}
+  .filter-search{width:100%;padding:6px 9px;margin-bottom:6px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);outline:none}
+  .filter-search:focus{border-color:var(--gh-green)}
+  .filter-list{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+  .filter-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text)}
+  .filter-item input{accent-color:var(--gh-green);cursor:pointer}
+  .filter-item label{margin:0;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn-clear-filtros{width:100%;padding:8px;border-radius:7px;border:1.5px solid var(--border);background:white;color:var(--text-soft);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font)}
+  .btn-clear-filtros:hover{background:var(--bg)}
+
+  .main{flex:1;padding:26px 30px 60px;min-width:0}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:22px}
+
+  .tabs{display:flex;gap:0;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:22px;background:white}
+  .tab-btn{flex:1;padding:11px 14px;font-size:13px;font-weight:600;background:white;border:none;cursor:pointer;color:var(--text-soft);transition:background .15s,color .15s}
+  .tab-btn.active{background:var(--gh-green);color:white}
+  .tab-btn:not(:last-child){border-right:1.5px solid var(--border)}
+  .tab-panel{display:none}.tab-panel.active{display:block}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+
+  .kpi-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center}
+  .kpi-value{font-size:38px;font-weight:800;color:var(--gh-green-dark);line-height:1}
+  .kpi-unit{font-size:14px;color:var(--gh-green);font-weight:700;margin-left:4px}
+  .kpi-label{font-size:11.5px;color:var(--text-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:8px}
+  .kpi-sub{font-size:12px;color:var(--text-soft);margin-top:10px}
+
+  .rank-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;font-size:12.5px}
+  .rank-pos{min-width:18px;color:var(--text-soft);font-weight:700}
+  .rank-name{min-width:110px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .rank-bar-wrap{flex:1;background:var(--bg);border-radius:6px;height:10px;overflow:hidden}
+  .rank-bar{height:100%;background:linear-gradient(90deg,var(--gh-green),var(--gh-green-dark));border-radius:6px}
+  .rank-val{min-width:78px;text-align:right;font-weight:700;color:var(--text)}
+  .empty-msg{text-align:center;color:var(--text-soft);font-style:italic;font-size:13px;padding:20px}
+
+  #map-mini{height:230px;border-radius:8px;border:1.5px solid var(--border)}
+  #map-lotes{height:560px;border-radius:8px;border:1.5px solid var(--border)}
+  .chart-wrap{position:relative}
+  #chart-pie-wrap{height:230px}
+  #chart-linea-wrap{height:190px}
+  #chart-campanas-wrap{height:380px}
+
+  .dev-placeholder{padding:70px 20px;text-align:center;color:var(--text-soft)}
+  .dev-placeholder .icon{font-size:42px;margin-bottom:14px}
+  .dev-placeholder strong{display:block;font-size:16px;color:var(--gh-green-dark);margin-bottom:6px}
+
+  #loading-bar{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark);margin-bottom:16px}
+
+  @media(max-width:900px){
+    .dash-layout{flex-direction:column}
+    .sidebar{width:100%;min-width:0;position:relative;height:auto}
+    .grid-2,.grid-3{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Dashboard</div>
+</header>
+
+<div class="dash-layout">
+
+  <!-- Sidebar filtros -->
+  <aside class="sidebar">
+    <h2>Filtros</h2>
+    <div id="filtros-container">
+      <!-- los grupos se generan dinámicamente -->
+    </div>
+    <button class="btn-clear-filtros" onclick="limpiarFiltros()">Limpiar filtros</button>
+  </aside>
+
+  <!-- Contenido principal -->
+  <main class="main">
+    <h1>Dashboard del programa</h1>
+    <p class="page-sub">Vista consolidada de todos los lotes cargados en el programa SNGM.</p>
+
+    <div id="loading-bar">Cargando datos del programa...</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchDashTab('principal')">Principal</button>
+      <button class="tab-btn" onclick="switchDashTab('mapa')">Mapa de lotes</button>
+      <button class="tab-btn" onclick="switchDashTab('comparativo')">Comparativo entre campañas</button>
+      <button class="tab-btn" onclick="switchDashTab('seguimiento')">Seguimiento</button>
+    </div>
+
+    <!-- TAB PRINCIPAL -->
+    <div class="tab-panel active" id="tab-principal">
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">Mapa</div>
+          <div id="map-mini"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Hectáreas cargadas</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="kpi-ha">0</span><span class="kpi-unit">ha</span></div>
+            <div class="kpi-label">Total con filtros aplicados</div>
+            <div class="kpi-sub" id="kpi-lotes">0 lotes</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Has. por variedad</div>
+          <div class="chart-wrap" id="chart-pie-wrap"><canvas id="chart-pie"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Ranking de provincias (ha)</div>
+          <div id="rank-provincias"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Ranking de productores (ha)</div>
+          <div id="rank-productores"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Hectáreas sembradas por fecha</div>
+        <div class="chart-wrap" id="chart-linea-wrap"><canvas id="chart-linea"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB MAPA DE LOTES -->
+    <div class="tab-panel" id="tab-mapa">
+      <div class="card">
+        <div class="card-title">Todos los lotes</div>
+        <div id="map-lotes"></div>
+      </div>
+    </div>
+
+    <!-- TAB COMPARATIVO -->
+    <div class="tab-panel" id="tab-comparativo">
+      <div class="card">
+        <div class="card-title">Hectáreas cargadas por campaña</div>
+        <div class="chart-wrap" id="chart-campanas-wrap"><canvas id="chart-campanas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB SEGUIMIENTO -->
+    <div class="tab-panel" id="tab-seguimiento">
+      <div class="card">
+        <div class="dev-placeholder">
+          <div class="icon">🚧</div>
+          <strong>Seguimiento</strong>
+          En desarrollo.
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbykKAufQ4wxJ9KQGc6BJOe99BOcAdy2pA6CSppZkHmZijc95vu987ue85hwlTxj2o3M1w/exec';
+
+// ─── ESTADO ───────────────────────────────────────────────
+let allLotes   = [];
+let activeTab  = 'principal';
+let filtros    = { campana:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
+let mapMini=null, mapLotes=null;
+let layersMini=[], layersLotes=[];
+let charts = { pie:null, linea:null, campanas:null };
+
+const FILTROS_DEF = [
+  {key:'campana',      label:'Campaña'},
+  {key:'provincia',    label:'Provincia'},
+  {key:'productor',    label:'Productor'},
+  {key:'nombre_campo', label:'Campo'},
+  {key:'variedad',     label:'Variedad'}
+];
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL + '?action=getLotes');
+    const data = await res.json();
+    allLotes = (Array.isArray(data) ? data : []).map(normalizarLote);
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+  }
+  construirFiltros();
+  renderTabActiva();
+}
+
+function normalizarLote(l) {
+  return {
+    ...l,
+    area_ha: parseFloat(l.area_ha) || 0,
+    fecha_siembra_estimada: aFechaISO(l.fecha_siembra_estimada),
+    provincia: l.provincia || 'Sin dato',
+    departamento: l.departamento || 'Sin dato',
+    productor: l.productor || 'Sin dato',
+    nombre_campo: l.nombre_campo || 'Sin dato',
+    variedad: l.variedad || 'Sin dato',
+    campana: l.campana || 'Sin dato'
+  };
+}
+
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+// ─── FILTROS ──────────────────────────────────────────────
+function construirFiltros() {
+  const cont = document.getElementById('filtros-container');
+  cont.innerHTML = FILTROS_DEF.map(f => {
+    const valores = [...new Set(allLotes.map(l=>l[f.key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    return `
+      <div class="filter-group" data-key="${f.key}">
+        <h4>${f.label} <span class="count">${valores.length}</span></h4>
+        <input type="text" class="filter-search" placeholder="Buscar..." oninput="filtrarListaFiltro('${f.key}', this.value)">
+        <div class="filter-list" id="filter-list-${f.key}">
+          ${valores.map(v => `
+            <div class="filter-item">
+              <input type="checkbox" id="filtro-${f.key}-${cssId(v)}" onchange="toggleFiltro('${f.key}','${escJs(v)}',this.checked)">
+              <label for="filtro-${f.key}-${cssId(v)}">${v}</label>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function cssId(v){ return String(v).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+function escJs(v){ return String(v).replace(/'/g,"\\'"); }
+
+function filtrarListaFiltro(key, texto) {
+  const t = texto.toLowerCase();
+  document.querySelectorAll(`#filter-list-${key} .filter-item`).forEach(item=>{
+    const label = item.querySelector('label').textContent.toLowerCase();
+    item.style.display = label.includes(t) ? 'flex' : 'none';
+  });
+}
+
+function toggleFiltro(key, valor, checked) {
+  if (checked) filtros[key].add(valor); else filtros[key].delete(valor);
+  renderTabActiva();
+}
+
+function limpiarFiltros() {
+  FILTROS_DEF.forEach(f => filtros[f.key].clear());
+  document.querySelectorAll('#filtros-container input[type=checkbox]').forEach(cb=>cb.checked=false);
+  document.querySelectorAll('.filter-search').forEach(i=>i.value='');
+  document.querySelectorAll('.filter-item').forEach(i=>i.style.display='flex');
+  renderTabActiva();
+}
+
+function lotesFiltrados() {
+  return allLotes.filter(l =>
+    FILTROS_DEF.every(f => filtros[f.key].size === 0 || filtros[f.key].has(l[f.key]))
+  );
+}
+
+// ─── TABS ─────────────────────────────────────────────────
+function switchDashTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const idx = {principal:0,mapa:1,comparativo:2,seguimiento:3}[tab];
+  document.querySelectorAll('.tabs .tab-btn')[idx].classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  renderTabActiva();
+}
+
+function renderTabActiva() {
+  const datos = lotesFiltrados();
+  if (activeTab === 'principal')      renderPrincipal(datos);
+  if (activeTab === 'mapa')           renderMapaLotes(datos);
+  if (activeTab === 'comparativo')    renderComparativo(datos);
+}
+
+// ─── MAPAS ────────────────────────────────────────────────
+function addBaseLayers(m) {
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Imagery © Esri',maxZoom:19}).addTo(m);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'',maxZoom:19,opacity:.8}).addTo(m);
+}
+
+function dibujarLotesEnMapa(map, layersArr, datos) {
+  layersArr.forEach(l=>map.removeLayer(l));
+  layersArr.length = 0;
+  datos.forEach(l=>{
+    if (!l.poligono_geojson) return;
+    let geom;
+    try { geom = JSON.parse(l.poligono_geojson); } catch(e) { return; }
+    if (!geom || !geom.coordinates) return;
+    const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+    const layer = L.polygon(ll,{color:'#1a56db',fillColor:'#1a56db',fillOpacity:.5,weight:1.5}).addTo(map);
+    layer.bindTooltip(`<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad} · ${l.area_ha} ha</span>`,{sticky:true});
+    layersArr.push(layer);
+  });
+  if (layersArr.length) {
+    map.fitBounds(L.featureGroup(layersArr).getBounds(),{padding:[30,30]});
+  } else {
+    map.setView([-34.5,-63],5);
+  }
+  map.invalidateSize();
+}
+
+function renderMapaMini(datos) {
+  if (!mapMini) {
+    mapMini = L.map('map-mini').setView([-34.5,-63],5);
+    addBaseLayers(mapMini);
+  }
+  dibujarLotesEnMapa(mapMini, layersMini, datos);
+}
+
+function renderMapaLotes(datos) {
+  if (!mapLotes) {
+    mapLotes = L.map('map-lotes').setView([-34.5,-63],5);
+    addBaseLayers(mapLotes);
+  }
+  dibujarLotesEnMapa(mapLotes, layersLotes, datos);
+}
+
+// ─── TAB PRINCIPAL ────────────────────────────────────────
+function renderPrincipal(datos) {
+  renderMapaMini(datos);
+  renderKpi(datos);
+  renderPieVariedad(datos);
+  renderRanking('rank-provincias', datos, 'provincia');
+  renderRanking('rank-productores', datos, 'productor');
+  renderLineaSiembras(datos);
+}
+
+function renderKpi(datos) {
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  document.getElementById('kpi-ha').textContent = totalHa.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('kpi-lotes').textContent = datos.length + (datos.length===1?' lote':' lotes');
+}
+
+function renderPieVariedad(datos) {
+  const porVariedad = {};
+  datos.forEach(l => porVariedad[l.variedad] = (porVariedad[l.variedad]||0) + l.area_ha);
+  const labels = Object.keys(porVariedad);
+  const valores = Object.values(porVariedad);
+  const colores = ['#3a6b2a','#1a56db','#c8a04a','#7a5c1a','#2a4e1e','#5b8fd4','#a3c585','#b33','#6c5ce7','#00897b'];
+
+  if (charts.pie) charts.pie.destroy();
+  charts.pie = new Chart(document.getElementById('chart-pie'), {
+    type: 'pie',
+    data: { labels, datasets:[{ data: valores, backgroundColor: colores }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } }
+    }
+  });
+}
+
+function renderRanking(containerId, datos, campo) {
+  const cont = document.getElementById(containerId);
+  const agrupado = {};
+  datos.forEach(l => agrupado[l[campo]] = (agrupado[l[campo]]||0) + l.area_ha);
+  const orden = Object.entries(agrupado).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if (!orden.length) { cont.innerHTML = '<div class="empty-msg">Sin datos para los filtros aplicados</div>'; return; }
+  const max = orden[0][1];
+  cont.innerHTML = orden.map(([nombre,ha],i) => `
+    <div class="rank-row">
+      <span class="rank-pos">${i+1}</span>
+      <span class="rank-name" title="${nombre}">${nombre}</span>
+      <span class="rank-bar-wrap"><span class="rank-bar" style="width:${max?(ha/max*100):0}%"></span></span>
+      <span class="rank-val">${ha.toLocaleString('es-AR',{maximumFractionDigits:1})} ha</span>
+    </div>`).join('');
+}
+
+function renderLineaSiembras(datos) {
+  const porFecha = {};
+  datos.forEach(l => { if (l.fecha_siembra_estimada) porFecha[l.fecha_siembra_estimada] = (porFecha[l.fecha_siembra_estimada]||0) + l.area_ha; });
+  const fechas = Object.keys(porFecha).sort();
+  const valores = fechas.map(f=>porFecha[f]);
+
+  if (charts.linea) charts.linea.destroy();
+  charts.linea = new Chart(document.getElementById('chart-linea'), {
+    type: 'line',
+    data: { labels: fechas, datasets:[{
+      data: valores, borderColor:'#3a6b2a', backgroundColor:'rgba(58,107,42,0.15)',
+      fill:true, tension:.3, pointRadius:2
+    }]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } },
+      scales:{ x:{ ticks:{ font:{size:10} } }, y:{ ticks:{ font:{size:10} }, title:{display:true,text:'ha',font:{size:10}} } }
+    }
+  });
+}
+
+// ─── TAB COMPARATIVO ──────────────────────────────────────
+function renderComparativo(datos) {
+  const porCampana = {};
+  datos.forEach(l => porCampana[l.campana] = (porCampana[l.campana]||0) + l.area_ha);
+  const labels = Object.keys(porCampana).sort();
+  const valores = labels.map(c=>porCampana[c]);
+
+  if (charts.campanas) charts.campanas.destroy();
+  charts.campanas = new Chart(document.getElementById('chart-campanas'), {
+    type: 'bar',
+    data: { labels, datasets:[{ data: valores, backgroundColor:'#3a6b2a', borderRadius:4 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } },
+      scales:{ y:{ title:{display:true,text:'Hectáreas'} } }
+    }
+  });
+}
+
+cargarDatos();
+</script>
+</body>
+</html>

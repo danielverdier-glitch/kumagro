@@ -847,6 +847,22 @@ function doPost(e) {
   }
 }
 
+// Usado por el dashboard (dashboard_SNGM.html) para leer todos los lotes.
+function doGet(e) {
+  const sheet = SpreadsheetApp.openById(SHEET_ID).getActiveSheet();
+  const rows  = sheet.getDataRange().getValues();
+  if (rows.length < 2) {
+    return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+  }
+  const headers = rows[0];
+  const data = rows.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = row[i] instanceof Date ? row[i].toISOString() : row[i]);
+    return obj;
+  });
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
 ─────────────────────────────────────────────────────────────────
 PASOS:
 1. Abrí Lotes_SNGM en Drive → Extensiones → Apps Script
