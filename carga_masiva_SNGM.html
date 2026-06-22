@@ -100,9 +100,9 @@
           <tr id="thead-row">
             <th data-col="productor">Productor</th><th data-col="region">Región</th><th data-col="nombre_campo">Campo</th><th data-col="lote">Lote</th>
             <th data-col="ha_plan">Has plan</th><th data-col="area_ha">Has inscriptas</th><th data-col="variedad">Variedad</th><th data-col="semilla_up">Semilla / UP</th>
-            <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th><th data-col="fecha_cosecha">Fecha cosecha</th>
+            <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th>
             <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (qq)</th>
-            <th data-col="cosechado">¿Cosechado?</th><th></th>
+            <th data-col="fecha_cosecha">Fecha cosecha</th><th data-col="cosechado">¿Cosechado?</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
@@ -308,9 +308,9 @@ function filaHTML(l) {
     </td>
     <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
     <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
-    <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td><input type="number" step="0.1" min="0" class="f-rinde" value="${rindePrevio===''?'':rindePrevio}" oninput="recalcularProduccion(this)" placeholder="qq/ha"></td>
     <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+    <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
     <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
   </tr>`;
