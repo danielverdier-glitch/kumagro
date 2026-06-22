@@ -97,12 +97,13 @@
           <tr>
             <th>Productor</th><th>Región</th><th>Campo</th><th>Lote</th>
             <th>Has plan</th><th>Has inscriptas</th><th>Variedad</th><th>Semilla / UP</th>
-            <th>¿Sembrado?</th><th>Rendimiento (qq/ha)</th><th>Producción (qq)</th>
+            <th>¿Sembrado?</th><th>Fecha siembra</th><th>Fecha cosecha</th>
+            <th>Rendimiento (qq/ha)</th><th>Producción (qq)</th>
             <th>¿Cosechado?</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="13">Cargando lotes...</td></tr>
+          <tr class="empty-row"><td colspan="15">Cargando lotes...</td></tr>
         </tbody>
       </table>
     </div>
@@ -192,23 +193,33 @@ function filaHTML(l) {
   const ultima = ultimaPorLote[l.id_lote] || null;
   const areaHa = parseFloat(l.area_ha) || 0;
   const haPlanPrevio   = ultima && ultima.ha_plan !== '' && ultima.ha_plan != null ? parseFloat(ultima.ha_plan) : areaHa;
-  const semillaUpPrevio= ultima ? (ultima.semilla_up || '') : '';
+  const variedadPrevia = ultima && ultima.variedad ? ultima.variedad : (l.variedad || '');
+  const semillaUpPrevio= ultima && ultima.semilla_up ? ultima.semilla_up : 'Semilla';
   const sembradoPrevio = ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
+  const fechaSiembraPrevia = ultima ? aFechaISO(ultima.fecha_siembra) : '';
+  const fechaCosechaPrevia = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const rindePrevio    = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : '';
   const cosechadoPrevio= ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
   const produccionPrevia = (rindePrevio !== '' && !isNaN(rindePrevio)) ? (rindePrevio * areaHa) : 0;
 
   return `
-  <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-area-ha="${areaHa}">
+  <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-lote="${escAttr(l.lote)}" data-area-ha="${areaHa}">
     <td>${l.productor||'—'}</td>
     <td>${l.region||'—'}</td>
     <td>${l.nombre_campo||'—'}</td>
     <td>${l.lote||'—'}</td>
     <td><input type="number" step="0.1" min="0" class="f-ha-plan" value="${isNaN(haPlanPrevio)?'':haPlanPrevio}"></td>
     <td>${areaHa.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
-    <td>${l.variedad||'—'}</td>
-    <td><input type="text" class="f-semilla-up" value="${escAttr(semillaUpPrevio)}" placeholder="Semilla / UP"></td>
+    <td><input type="text" class="f-variedad" value="${escAttr(variedadPrevia)}" placeholder="Variedad"></td>
+    <td>
+      <select class="f-semilla-up">
+        <option value="Semilla" ${semillaUpPrevio==='Semilla'?'selected':''}>Semilla</option>
+        <option value="UP" ${semillaUpPrevio==='UP'?'selected':''}>UP</option>
+      </select>
+    </td>
     <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
+    <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
+    <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td><input type="number" step="0.1" min="0" class="f-rinde" value="${rindePrevio===''?'':rindePrevio}" oninput="recalcularProduccion(this)" placeholder="qq/ha"></td>
     <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
     <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
@@ -220,7 +231,7 @@ function renderTabla() {
   const tbody = document.getElementById('tabla-body');
   const lotes = lotesFiltrados();
   if (!lotes.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">No hay lotes para los filtros seleccionados</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="15">No hay lotes para los filtros seleccionados</td></tr>';
     return;
   }
   tbody.innerHTML = lotes.map(filaHTML).join('');
@@ -241,14 +252,18 @@ async function guardarFila(btn) {
   const idLote    = tr.dataset.idLote;
   const productor = tr.dataset.productor;
   const campo     = tr.dataset.campo;
+  const lote      = tr.dataset.lote;
   const areaHa    = parseFloat(tr.dataset.areaHa) || 0;
 
-  const haPlan     = get('.f-ha-plan').value;
-  const semillaUp  = get('.f-semilla-up').value.trim();
-  const sembrado   = get('.f-sembrado').checked;
-  const rinde      = get('.f-rinde').value;
-  const cosechado  = get('.f-cosechado').checked;
-  const produccion = (parseFloat(rinde)||0) * areaHa;
+  const haPlan       = get('.f-ha-plan').value;
+  const variedad     = get('.f-variedad').value.trim();
+  const semillaUp    = get('.f-semilla-up').value;
+  const sembrado     = get('.f-sembrado').checked;
+  const fechaSiembra = get('.f-fecha-siembra').value;
+  const fechaCosecha = get('.f-fecha-cosecha').value;
+  const rinde        = get('.f-rinde').value;
+  const cosechado    = get('.f-cosechado').checked;
+  const produccion   = (parseFloat(rinde)||0) * areaHa;
 
   const original = btn.textContent;
   btn.disabled = true;
@@ -262,14 +277,15 @@ async function guardarFila(btn) {
         action:'appendVisita',
         data: {
           id_visita: 'MASIVO-' + Date.now(), fecha_visita: fechaHoy, tecnico:'', productor,
-          nombre_campo: campo, id_lote: idLote, lote: tr.children[3].textContent.trim(),
+          nombre_campo: campo, id_lote: idLote, lote,
           lat_visita:'', lng_visita:'',
-          lote_sembrado: sembrado, fecha_siembra:'', fecha_cosecha_estimada:'',
+          lote_sembrado: sembrado, fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
           estado_fenologico:'', estado_malezas:'', malezas_resistentes:false,
           observacion_plagas:'', condicion_cultivo:'', rinde_estimado_qqha: rinde,
           notas:'', imagenes:'', fecha_carga: new Date().toISOString(),
           lote_cosechado: cosechado ? 'Sí' : 'No',
-          tipo_registro: 'carga_masiva', ha_plan: haPlan, semilla_up: semillaUp
+          tipo_registro: 'carga_masiva', ha_plan: haPlan, semilla_up: semillaUp,
+          variedad
         }
       })
     });
@@ -277,8 +293,9 @@ async function guardarFila(btn) {
     // Actualizar caché local para que quede consistente si se vuelve a filtrar
     ultimaPorLote[idLote] = {
       id_lote: idLote, fecha_visita: fechaHoy, lote_sembrado: sembrado,
+      fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
       rinde_estimado_qqha: rinde, lote_cosechado: cosechado ? 'Sí' : 'No',
-      ha_plan: haPlan, semilla_up: semillaUp, tipo_registro: 'carga_masiva'
+      ha_plan: haPlan, semilla_up: semillaUp, variedad, tipo_registro: 'carga_masiva'
     };
 
     tr.classList.add('fila-guardada');
