@@ -159,11 +159,11 @@
 
     <div class="tabs">
       <button class="tab-btn active" onclick="switchDashTab('principal')">Principal</button>
+      <button class="tab-btn" onclick="switchDashTab('seguimiento')">Seguimiento</button>
       <button class="tab-btn" onclick="switchDashTab('mapa')">Mapa de lotes</button>
       <button class="tab-btn" onclick="switchDashTab('comparativo')">Comparativo entre campañas</button>
       <button class="tab-btn" onclick="switchDashTab('visitas')">Visitas</button>
       <button class="tab-btn" onclick="switchDashTab('campos')">Campos</button>
-      <button class="tab-btn" onclick="switchDashTab('seguimiento')">Seguimiento</button>
     </div>
 
     <!-- TAB PRINCIPAL -->
@@ -567,7 +567,7 @@ function switchDashTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const idx = {principal:0,mapa:1,comparativo:2,visitas:3,campos:4,seguimiento:5}[tab];
+  const idx = {principal:0,seguimiento:1,mapa:2,comparativo:3,visitas:4,campos:5}[tab];
   document.querySelectorAll('.tabs .tab-btn')[idx].classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   renderTabActiva();
