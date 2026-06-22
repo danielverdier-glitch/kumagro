@@ -95,6 +95,14 @@
   .chart-wrap{position:relative}
   #chart-pie-wrap{height:230px}
   #chart-pie-siembra-wrap{height:230px}
+  .semaforo-row{display:flex;justify-content:space-between;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
+  .semaforo-item{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
+  .semaforo-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+  .semaforo-verde{background:#2e9e44}
+  .semaforo-amarillo{background:#e0b400}
+  .semaforo-rojo{background:#c0392b}
+  .semaforo-count{font-size:15px;font-weight:700;color:var(--text)}
+  .semaforo-label{font-size:10px;color:var(--text-soft);text-align:center}
   #chart-linea-wrap{height:190px}
   #chart-campanas-wrap{height:380px}
   #seg-chart-condicion-wrap,#seg-chart-fenologico-wrap{height:230px}
@@ -256,6 +264,23 @@
           <div class="kpi-box">
             <div><span class="kpi-value" id="seg-kpi-visitas">0</span></div>
             <div class="kpi-label">Visitas registradas</div>
+          </div>
+          <div class="semaforo-row" id="seg-semaforo" title="Antigüedad del último dato cargado por lote (visita o carga masiva)">
+            <div class="semaforo-item">
+              <span class="semaforo-dot semaforo-verde"></span>
+              <span class="semaforo-count" id="seg-semaforo-verde">0</span>
+              <span class="semaforo-label">≤10 días</span>
+            </div>
+            <div class="semaforo-item">
+              <span class="semaforo-dot semaforo-amarillo"></span>
+              <span class="semaforo-count" id="seg-semaforo-amarillo">0</span>
+              <span class="semaforo-label">10-20 días</span>
+            </div>
+            <div class="semaforo-item">
+              <span class="semaforo-dot semaforo-rojo"></span>
+              <span class="semaforo-count" id="seg-semaforo-rojo">0</span>
+              <span class="semaforo-label">+20 días</span>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -814,6 +839,7 @@ function renderSeguimientoDashboard(datos) {
 
   renderKpiHasYSiembra(datos, ultima);
   renderKpiVisitas(datos);
+  renderSemaforoActualizacion(datos, ultima);
   renderKpiRendimiento(datos, ultima);
   renderPieCondicion(datos, ultima);
   renderFenologico(datos, ultima);
@@ -836,6 +862,28 @@ function renderKpiVisitas(datos) {
   const visitasVisibles = allVisitas.filter(v=>idsVisibles.has(v.id_lote) && v.tipo_registro !== 'carga_masiva');
   const visitasUnicas = new Set(visitasVisibles.map(v=>v.id_visita));
   document.getElementById('seg-kpi-visitas').textContent = visitasUnicas.size;
+}
+
+// Semáforo de antigüedad: toma el último dato cargado por lote (visita o
+// carga masiva, vía ultimaPorLoteVisitas que no filtra por tipo_registro)
+// y clasifica cada lote según los días transcurridos desde esa carga.
+function renderSemaforoActualizacion(datos, ultima) {
+  const hoy = new Date();
+  let verde = 0, amarillo = 0, rojo = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    let dias = Infinity;
+    if (v && v.fecha_visita) {
+      const f = new Date(aFechaISO(v.fecha_visita));
+      if (!isNaN(f)) dias = Math.floor((hoy - f) / 86400000);
+    }
+    if (dias <= 10) verde++;
+    else if (dias <= 20) amarillo++;
+    else rojo++;
+  });
+  document.getElementById('seg-semaforo-verde').textContent = verde;
+  document.getElementById('seg-semaforo-amarillo').textContent = amarillo;
+  document.getElementById('seg-semaforo-rojo').textContent = rojo;
 }
 
 function renderKpiRendimiento(datos, ultima) {
