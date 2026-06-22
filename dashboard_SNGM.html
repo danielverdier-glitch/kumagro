@@ -97,10 +97,10 @@
   #chart-pie-siembra-wrap{height:230px}
   .semaforo-row{display:flex;justify-content:space-between;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}
   .semaforo-item{display:flex;flex-direction:column;align-items:center;gap:3px;flex:1}
-  .semaforo-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
-  .semaforo-verde{background:#2e9e44}
-  .semaforo-amarillo{background:#e0b400}
-  .semaforo-rojo{background:#c0392b}
+  .semaforo-dot{width:18px;height:18px;border-radius:50%;display:inline-block;background:#d8d8d8;box-shadow:inset 0 0 3px rgba(0,0,0,.25);transition:background .2s,box-shadow .2s}
+  .semaforo-dot.encendido.semaforo-verde{background:#2e9e44;box-shadow:0 0 8px 2px rgba(46,158,68,.65)}
+  .semaforo-dot.encendido.semaforo-amarillo{background:#e0b400;box-shadow:0 0 8px 2px rgba(224,180,0,.65)}
+  .semaforo-dot.encendido.semaforo-rojo{background:#c0392b;box-shadow:0 0 8px 2px rgba(192,57,43,.65)}
   .semaforo-count{font-size:15px;font-weight:700;color:var(--text)}
   .semaforo-label{font-size:10px;color:var(--text-soft);text-align:center}
   #chart-linea-wrap{height:190px}
@@ -260,24 +260,31 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-title">Visitas realizadas</div>
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Visitas realizadas</span>
+            <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="lotes">Lotes</option>
+              <option value="ha">Hectáreas</option>
+            </select>
+          </div>
           <div class="kpi-box">
             <div><span class="kpi-value" id="seg-kpi-visitas">0</span></div>
             <div class="kpi-label">Visitas registradas</div>
           </div>
           <div class="semaforo-row" id="seg-semaforo" title="Antigüedad del último dato cargado por lote (visita o carga masiva)">
             <div class="semaforo-item">
-              <span class="semaforo-dot semaforo-verde"></span>
+              <span class="semaforo-dot semaforo-verde" id="seg-semaforo-dot-verde"></span>
               <span class="semaforo-count" id="seg-semaforo-verde">0</span>
               <span class="semaforo-label">≤10 días</span>
             </div>
             <div class="semaforo-item">
-              <span class="semaforo-dot semaforo-amarillo"></span>
+              <span class="semaforo-dot semaforo-amarillo" id="seg-semaforo-dot-amarillo"></span>
               <span class="semaforo-count" id="seg-semaforo-amarillo">0</span>
               <span class="semaforo-label">10-20 días</span>
             </div>
             <div class="semaforo-item">
-              <span class="semaforo-dot semaforo-rojo"></span>
+              <span class="semaforo-dot semaforo-rojo" id="seg-semaforo-dot-rojo"></span>
               <span class="semaforo-count" id="seg-semaforo-rojo">0</span>
               <span class="semaforo-label">+20 días</span>
             </div>
@@ -867,9 +874,12 @@ function renderKpiVisitas(datos) {
 // Semáforo de antigüedad: toma el último dato cargado por lote (visita o
 // carga masiva, vía ultimaPorLoteVisitas que no filtra por tipo_registro)
 // y clasifica cada lote según los días transcurridos desde esa carga.
+let semaforoUnidad = 'lotes'; // 'lotes' | 'ha'
+let semaforoDatos = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
+
 function renderSemaforoActualizacion(datos, ultima) {
   const hoy = new Date();
-  let verde = 0, amarillo = 0, rojo = 0;
+  const cont = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
   datos.forEach(l => {
     const v = ultima[l.id_lote];
     let dias = Infinity;
@@ -877,13 +887,29 @@ function renderSemaforoActualizacion(datos, ultima) {
       const f = new Date(aFechaISO(v.fecha_visita));
       if (!isNaN(f)) dias = Math.floor((hoy - f) / 86400000);
     }
-    if (dias <= 10) verde++;
-    else if (dias <= 20) amarillo++;
-    else rojo++;
+    const balde = dias <= 10 ? 'verde' : dias <= 20 ? 'amarillo' : 'rojo';
+    cont.lotes[balde]++;
+    cont.ha[balde] += l.area_ha;
   });
-  document.getElementById('seg-semaforo-verde').textContent = verde;
-  document.getElementById('seg-semaforo-amarillo').textContent = amarillo;
-  document.getElementById('seg-semaforo-rojo').textContent = rojo;
+  semaforoDatos = cont;
+  pintarSemaforo();
+}
+
+function cambiarSemaforoUnidad(valor) {
+  semaforoUnidad = valor;
+  pintarSemaforo();
+}
+
+function pintarSemaforo() {
+  const d = semaforoDatos[semaforoUnidad];
+  ['verde','amarillo','rojo'].forEach(color=>{
+    const valor = d[color];
+    const texto = semaforoUnidad === 'ha'
+      ? valor.toLocaleString('es-AR',{maximumFractionDigits:1})
+      : valor;
+    document.getElementById('seg-semaforo-'+color).textContent = texto;
+    document.getElementById('seg-semaforo-dot-'+color).classList.toggle('encendido', valor > 0);
+  });
 }
 
 function renderKpiRendimiento(datos, ultima) {
