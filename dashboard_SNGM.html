@@ -477,7 +477,7 @@ function renderTabActiva() {
   if (activeTab === 'seguimiento')    renderSeguimientoDashboard(datos);
 }
 
-function esTrue(v) { return v===true||v===1||v==='1'; }
+function esTrue(v) { return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si'; }
 
 function ultimaPorLoteVisitas(datos) {
   const idsVisibles = new Set(datos.map(l=>l.id_lote));
@@ -779,13 +779,15 @@ function renderKpiVisitas(datos) {
 }
 
 function renderKpiRendimiento(datos, ultima) {
-  let sumaProducto = 0, haConRinde = 0;
+  let sumaProducto = 0;
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
   datos.forEach(l => {
     const v = ultima[l.id_lote];
     const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
-    if (!isNaN(rinde) && rinde > 0) { sumaProducto += rinde*l.area_ha; haConRinde += l.area_ha; }
+    // Si todavía no hay rinde estimado para el lote, se considera 0 para el promedio general.
+    if (!isNaN(rinde) && rinde > 0) sumaProducto += rinde*l.area_ha;
   });
-  const rindeProm = haConRinde ? sumaProducto/haConRinde : 0;
+  const rindeProm = totalHa ? sumaProducto/totalHa : 0;
   const tnTotal = sumaProducto/10; // qq/ha * ha = qq; 1 Tn = 10 qq
   document.getElementById('seg-kpi-rinde').textContent = rindeProm.toLocaleString('es-AR',{maximumFractionDigits:1});
   document.getElementById('seg-kpi-tn').textContent = tnTotal.toLocaleString('es-AR',{maximumFractionDigits:0}) + ' Tn totales';
@@ -952,7 +954,7 @@ function renderPronosticoEvolucion(datos) {
 function renderCosecha(datos, ultima) {
   let haCosechadas = 0;
   const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
-  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.cosechado)) haCosechadas += l.area_ha; });
+  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.lote_cosechado)) haCosechadas += l.area_ha; });
   const pct = totalHa ? (haCosechadas/totalHa*100) : 0;
   document.getElementById('seg-kpi-cosecha').textContent = pct.toFixed(0);
   document.getElementById('seg-cosecha-bar').style.width = Math.min(pct,100).toFixed(0)+'%';
@@ -969,8 +971,8 @@ function renderCosechaEvolucion(datos) {
   const FIN_KEY    = (4+12)*100 + 15;  // 15-abr
 
   const eventos = allVisitas
-    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.cosechado) && v.fecha_cosecha_real)
-    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_real) }))
+    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada)
+    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_estimada) }))
     .filter(v => v.fechaISO)
     .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
     .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
