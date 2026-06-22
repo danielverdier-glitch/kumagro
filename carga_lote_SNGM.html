@@ -195,12 +195,12 @@
         <thead>
           <tr>
             <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
-            <th>Provincia</th><th>Departamento</th>
+            <th>Provincia</th><th>Departamento</th><th>Región</th>
             <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th><th>Estado</th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="10">Aún no hay lotes agregados</td></tr>
+          <tr class="empty-row"><td colspan="11">Aún no hay lotes agregados</td></tr>
         </tbody>
       </table>
     </div>
@@ -225,7 +225,7 @@
         <thead>
           <tr>
             <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
-            <th>Provincia</th><th>Departamento</th>
+            <th>Provincia</th><th>Departamento</th><th>Región</th>
             <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th>
           </tr>
         </thead>
@@ -468,6 +468,42 @@ async function getProvinciaDepto(lat, lng) {
   }
 }
 
+// ─── REGIONES AGROECONÓMICAS ARGENTINAS ───────────────────
+// Clasificación aproximada según provincia/departamento, en base a la
+// división utilizada por la Bolsa de Cereales / Ministerio de Agricultura.
+const REGION_POR_PROVINCIA = {
+  'Salta':'NOA','Jujuy':'NOA','Tucumán':'NOA','Catamarca':'NOA','Santiago del Estero':'NOA',
+  'Misiones':'NEA','Corrientes':'NEA','Formosa':'NEA','Chaco':'NEA',
+  'Entre Ríos':'Litoral',
+  'La Rioja':'Oeste','San Juan':'Oeste','Mendoza':'Oeste','San Luis':'Oeste',
+  'Neuquén':'Sur','Río Negro':'Sur','Chubut':'Sur','Santa Cruz':'Sur','Tierra del Fuego':'Sur','La Pampa':'Sur',
+};
+// Departamentos de Santa Fe y Córdoba que pertenecen al Núcleo agrícola
+const DEPTOS_NUCLEO_SANTAFE = ['General López','Constitución','Rosario','Caseros','San Lorenzo','Iriondo','Belgrano'];
+const DEPTOS_NUCLEO_CORDOBA = ['Marcos Juárez','Unión','San Justo','Río Cuarto','Juárez Celman','Tercero Arriba','General San Martín'];
+// Partidos de Buenos Aires agrupados por sub-región agroeconómica
+const PARTIDOS_NUCLEO_BSAS = ['Pergamino','Colón','Salto','Rojas','San Nicolás','Ramallo','San Pedro','Arrecifes','Baradero','Capitán Sarmiento','Arenales'];
+const PARTIDOS_MAR_SIERRAS = ['Mar Chiquita','General Pueyrredón','General Alvarado','Balcarce','Necochea','San Cayetano','Lobería','Tandil','Maipú','General Guido','Dolores'];
+const PARTIDOS_SUR_BSAS = ['Bahía Blanca','Coronel Dorrego','Coronel Pringles','Coronel Suárez','Tres Arroyos','Puan','Saavedra','Adolfo Alsina','Guaminí','Patagones','Villarino'];
+const PARTIDOS_OESTE_BSAS = ['Pehuajó','Trenque Lauquen','General Villegas','Rivadavia','Lincoln','General Pinto','Hipólito Yrigoyen','Tres Lomas','Carlos Tejedor','Florentino Ameghino'];
+
+function clasificarRegion(provincia, departamento) {
+  if (provincia === 'Buenos Aires') {
+    if (PARTIDOS_NUCLEO_BSAS.includes(departamento)) return 'Núcleo';
+    if (PARTIDOS_MAR_SIERRAS.includes(departamento))  return 'Mar y Sierras';
+    if (PARTIDOS_SUR_BSAS.includes(departamento))     return 'Sur';
+    if (PARTIDOS_OESTE_BSAS.includes(departamento))   return 'Oeste';
+    return 'Centro';
+  }
+  if (provincia === 'Santa Fe') {
+    return DEPTOS_NUCLEO_SANTAFE.includes(departamento) ? 'Núcleo' : 'Litoral';
+  }
+  if (provincia === 'Córdoba') {
+    return DEPTOS_NUCLEO_CORDOBA.includes(departamento) ? 'Núcleo' : 'Centro';
+  }
+  return REGION_POR_PROVINCIA[provincia] || 'Sin clasificar';
+}
+
 // ─── KMZ / KML ────────────────────────────────────────────
 function handleDrop(e) {
   e.preventDefault();
@@ -591,6 +627,7 @@ async function agregarLote() {
 
   showToast('Obteniendo ubicación oficial...','info');
   const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
+  const region = clasificarRegion(provincia, departamento);
 
   const idLote = 'SNGM-'+Date.now();
   const nombreArchivo = nombreArchivoLote(productor, nombreCampo, lote);
@@ -600,7 +637,7 @@ async function agregarLote() {
   const loteObj = {
     id_lote:idLote, productor, nombre_campo:nombreCampo, lote,
     variedad, fecha_siembra_estimada:fechaSiembra, campana,
-    provincia, departamento, area_ha:area,
+    provincia, departamento, region, area_ha:area,
     poligono_geojson:JSON.stringify(currentPolygon),
     fecha_carga:new Date().toISOString().slice(0,10),
     latitud_centroide:centroid.lat.toFixed(6),
@@ -644,7 +681,7 @@ function calcCampana(fechaSiembraStr) {
 function actualizarTabla() {
   const tbody=document.getElementById('tabla-body');
   if(!lotesAgregados.length){
-    tbody.innerHTML='<tr class="empty-row"><td colspan="10">Aún no hay lotes agregados</td></tr>';return;
+    tbody.innerHTML='<tr class="empty-row"><td colspan="11">Aún no hay lotes agregados</td></tr>';return;
   }
   tbody.innerHTML=lotesAgregados.map((l,i)=>`
     <tr>
@@ -654,6 +691,7 @@ function actualizarTabla() {
       <td>${l.lote||'—'}</td>
       <td>${l.provincia}</td>
       <td>${l.departamento}</td>
+      <td>${l.region||'—'}</td>
       <td><span class="badge">${l.variedad}</span></td>
       <td>${formatFecha(l.fecha_siembra_estimada)}</td>
       <td>${l.area_ha}</td>
@@ -778,6 +816,7 @@ function mostrarPaginaGracias() {
       <td>${l.lote||'—'}</td>
       <td>${l.provincia}</td>
       <td>${l.departamento}</td>
+      <td>${l.region||'—'}</td>
       <td><span class="badge">${l.variedad}</span></td>
       <td>${formatFecha(l.fecha_siembra_estimada)}</td>
       <td>${l.area_ha}</td>
@@ -868,14 +907,15 @@ function doPost(e) {
       if (sheet.getLastRow() === 0) {
         sheet.appendRow(['id_lote','productor','nombre_campo','lote','variedad',
           'fecha_siembra_estimada','campana','provincia','departamento','area_ha',
-          'poligono_geojson','fecha_carga','latitud_centroide','longitud_centroide','kmz_filename']);
+          'poligono_geojson','fecha_carga','latitud_centroide','longitud_centroide','kmz_filename',
+          'region']);
       }
 
       sheet.appendRow([
         d.id_lote, d.productor, d.nombre_campo, d.lote||'', d.variedad,
         d.fecha_siembra_estimada, d.campana, d.provincia, d.departamento, d.area_ha,
         d.poligono_geojson, d.fecha_carga, d.latitud_centroide, d.longitud_centroide,
-        d.kmz_filename||''
+        d.kmz_filename||'', d.region||''
       ]);
     }
 

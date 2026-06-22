@@ -334,6 +334,7 @@ function colorCampana(c) { return campanaColorMap[c] || '#1a56db'; }
 const FILTROS_DEF = [
   {key:'campana',      label:'Campaña'},
   {key:'provincia',    label:'Provincia'},
+  {key:'region',       label:'Región'},
   {key:'productor',    label:'Productor'},
   {key:'nombre_campo', label:'Campo'},
   {key:'variedad',     label:'Variedad'}
@@ -365,6 +366,7 @@ function normalizarLote(l) {
     area_ha: parseFloat(l.area_ha) || 0,
     fecha_siembra_estimada: aFechaISO(l.fecha_siembra_estimada),
     provincia: l.provincia || 'Sin dato',
+    region: l.region || 'Sin clasificar',
     departamento: l.departamento || 'Sin dato',
     productor: l.productor || 'Sin dato',
     nombre_campo: l.nombre_campo || 'Sin dato',
