@@ -168,7 +168,14 @@
           <div class="chart-wrap" id="chart-pie-wrap"><canvas id="chart-pie"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Ranking de provincias (ha)</div>
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Ranking geográfico (ha)</span>
+            <select id="rank-geo-select" onchange="cambiarRankingGeo(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="region">Región</option>
+              <option value="provincia">Provincia</option>
+            </select>
+          </div>
           <div id="rank-provincias"></div>
         </div>
       </div>
@@ -311,7 +318,8 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylfmo_tpnUpfIt
 let allLotes   = [];
 let allVisitas = [];
 let activeTab  = 'principal';
-let filtros    = { campana:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
+let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
+let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
 let mapMini=null, mapLotes=null;
 let layersMini=[], layersLotes=[];
 let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null };
@@ -333,8 +341,8 @@ function colorCampana(c) { return campanaColorMap[c] || '#1a56db'; }
 
 const FILTROS_DEF = [
   {key:'campana',      label:'Campaña'},
-  {key:'provincia',    label:'Provincia'},
   {key:'region',       label:'Región'},
+  {key:'provincia',    label:'Provincia'},
   {key:'productor',    label:'Productor'},
   {key:'nombre_campo', label:'Campo'},
   {key:'variedad',     label:'Variedad'}
@@ -618,7 +626,9 @@ function renderPrincipal(datos) {
   renderMapaMini(datos);
   renderKpi(datos);
   renderPieVariedad(datos);
-  renderRanking('rank-provincias', datos, 'provincia');
+  const selGeo = document.getElementById('rank-geo-select');
+  if (selGeo) selGeo.value = rankingGeo;
+  renderRanking('rank-provincias', datos, rankingGeo);
   renderRanking('rank-productores', datos, 'productor');
   renderLineaSiembras(datos);
 }
@@ -646,6 +656,11 @@ function renderPieVariedad(datos) {
         tooltip:{ callbacks:{ label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } }
     }
   });
+}
+
+function cambiarRankingGeo(valor) {
+  rankingGeo = valor;
+  renderRanking('rank-provincias', lotesFiltrados(), rankingGeo);
 }
 
 function renderRanking(containerId, datos, campo) {
