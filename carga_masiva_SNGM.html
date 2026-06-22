@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Carga masiva SNGM</title>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+  .container{max-width:1320px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:24px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  select,input[type=number]{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
+  select:focus,input:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap;position:sticky;top:0}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr.fila-guardada{background:var(--gh-green-light)}
+  tbody td{padding:7px 9px;vertical-align:middle;white-space:nowrap}
+  tbody td input,tbody td select{min-width:90px;font-size:12.5px;padding:6px 8px}
+  td.col-produccion{font-weight:700;color:var(--gh-green-dark);min-width:90px}
+  .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  .btn{padding:7px 16px;border-radius:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font);white-space:nowrap}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-ok{background:var(--gh-green-dark)}
+  .map-hint{font-size:12px;color:var(--text-soft);margin-bottom:14px}
+  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.error{background:#b33}
+  @media(max-width:700px){.grid-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Carga masiva de datos</div>
+</header>
+
+<div class="container">
+  <h1>Carga masiva de datos por lote</h1>
+  <p class="page-sub">Actualizá datos de seguimiento sin registrar una visita a campo. No se guarda punto GPS ni fotos, pero el cambio queda registrado en el historial de cada lote.</p>
+
+  <div id="loading-bar" class="map-hint">Cargando lotes del programa...</div>
+
+  <div class="card">
+    <div class="card-title">Filtros</div>
+    <div class="grid-3">
+      <div>
+        <label>Región</label>
+        <select id="f-region" onchange="renderTabla()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div>
+        <label>Productor</label>
+        <select id="f-productor" onchange="renderTabla()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label>Variedad</label>
+        <select id="f-variedad" onchange="renderTabla()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Lotes</div>
+    <p class="map-hint">Se trae el último dato cargado para cada lote. Editá lo que necesites y guardá fila por fila.</p>
+    <div class="table-wrap">
+      <table id="tabla-lotes">
+        <thead>
+          <tr>
+            <th>Productor</th><th>Región</th><th>Campo</th><th>Lote</th>
+            <th>Has plan</th><th>Has inscriptas</th><th>Variedad</th><th>Semilla / UP</th>
+            <th>¿Sembrado?</th><th>Rendimiento (qq/ha)</th><th>Producción (qq)</th>
+            <th>¿Cosechado?</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body">
+          <tr class="empty-row"><td colspan="13">Cargando lotes...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylfmo_tpnUpfItXVT9FKQWP2nXi8aKeoIdg-nvjmA0oYtxxC3xctzaVObIjpnu1-_crA/exec';
+
+let allLotes   = [];
+let allVisitas = [];
+let ultimaPorLote = {};
+
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+function esSiNoTrue(v) {
+  return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si';
+}
+
+function escAttr(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  try {
+    const [resLotes, resVisitas] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+    ]);
+    const data    = await resLotes.json();
+    const visitas = await resVisitas.json();
+    allLotes   = Array.isArray(data) ? data : [];
+    allVisitas = Array.isArray(visitas) ? visitas : [];
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+  }
+  construirUltimaPorLote();
+  construirFiltros();
+  renderTabla();
+}
+
+function construirUltimaPorLote() {
+  ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+}
+
+function construirFiltros() {
+  const regiones   = [...new Set(allLotes.map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const productores= [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const variedades = [...new Set(allLotes.map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+  const selRegion = document.getElementById('f-region');
+  selRegion.innerHTML = '<option value="">Todas</option>' + regiones.map(r=>`<option value="${escAttr(r)}">${r}</option>`).join('');
+  const selProductor = document.getElementById('f-productor');
+  selProductor.innerHTML = '<option value="">Todos</option>' + productores.map(p=>`<option value="${escAttr(p)}">${p}</option>`).join('');
+  const selVariedad = document.getElementById('f-variedad');
+  selVariedad.innerHTML = '<option value="">Todas</option>' + variedades.map(v=>`<option value="${escAttr(v)}">${v}</option>`).join('');
+}
+
+function lotesFiltrados() {
+  const region    = document.getElementById('f-region').value;
+  const productor = document.getElementById('f-productor').value;
+  const variedad  = document.getElementById('f-variedad').value;
+  return allLotes.filter(l =>
+    (!region    || l.region    === region) &&
+    (!productor || l.productor === productor) &&
+    (!variedad  || l.variedad  === variedad)
+  );
+}
+
+// ─── TABLA ────────────────────────────────────────────────
+function filaHTML(l) {
+  const ultima = ultimaPorLote[l.id_lote] || null;
+  const areaHa = parseFloat(l.area_ha) || 0;
+  const haPlanPrevio   = ultima && ultima.ha_plan !== '' && ultima.ha_plan != null ? parseFloat(ultima.ha_plan) : areaHa;
+  const semillaUpPrevio= ultima ? (ultima.semilla_up || '') : '';
+  const sembradoPrevio = ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
+  const rindePrevio    = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : '';
+  const cosechadoPrevio= ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
+  const produccionPrevia = (rindePrevio !== '' && !isNaN(rindePrevio)) ? (rindePrevio * areaHa) : 0;
+
+  return `
+  <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-area-ha="${areaHa}">
+    <td>${l.productor||'—'}</td>
+    <td>${l.region||'—'}</td>
+    <td>${l.nombre_campo||'—'}</td>
+    <td>${l.lote||'—'}</td>
+    <td><input type="number" step="0.1" min="0" class="f-ha-plan" value="${isNaN(haPlanPrevio)?'':haPlanPrevio}"></td>
+    <td>${areaHa.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+    <td>${l.variedad||'—'}</td>
+    <td><input type="text" class="f-semilla-up" value="${escAttr(semillaUpPrevio)}" placeholder="Semilla / UP"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
+    <td><input type="number" step="0.1" min="0" class="f-rinde" value="${rindePrevio===''?'':rindePrevio}" oninput="recalcularProduccion(this)" placeholder="qq/ha"></td>
+    <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+    <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
+    <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
+  </tr>`;
+}
+
+function renderTabla() {
+  const tbody = document.getElementById('tabla-body');
+  const lotes = lotesFiltrados();
+  if (!lotes.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">No hay lotes para los filtros seleccionados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lotes.map(filaHTML).join('');
+}
+
+function recalcularProduccion(input) {
+  const tr = input.closest('tr');
+  const areaHa = parseFloat(tr.dataset.areaHa) || 0;
+  const rinde = parseFloat(input.value) || 0;
+  tr.querySelector('.col-produccion').textContent = (rinde*areaHa).toLocaleString('es-AR',{maximumFractionDigits:0});
+}
+
+// ─── GUARDAR FILA ─────────────────────────────────────────
+async function guardarFila(btn) {
+  const tr = btn.closest('tr');
+  const get = sel => tr.querySelector(sel);
+
+  const idLote    = tr.dataset.idLote;
+  const productor = tr.dataset.productor;
+  const campo     = tr.dataset.campo;
+  const areaHa    = parseFloat(tr.dataset.areaHa) || 0;
+
+  const haPlan     = get('.f-ha-plan').value;
+  const semillaUp  = get('.f-semilla-up').value.trim();
+  const sembrado   = get('.f-sembrado').checked;
+  const rinde      = get('.f-rinde').value;
+  const cosechado  = get('.f-cosechado').checked;
+  const produccion = (parseFloat(rinde)||0) * areaHa;
+
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    const fechaHoy = new Date().toISOString().slice(0,10);
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify({
+        action:'appendVisita',
+        data: {
+          id_visita: 'MASIVO-' + Date.now(), fecha_visita: fechaHoy, tecnico:'', productor,
+          nombre_campo: campo, id_lote: idLote, lote: tr.children[3].textContent.trim(),
+          lat_visita:'', lng_visita:'',
+          lote_sembrado: sembrado, fecha_siembra:'', fecha_cosecha_estimada:'',
+          estado_fenologico:'', estado_malezas:'', malezas_resistentes:false,
+          observacion_plagas:'', condicion_cultivo:'', rinde_estimado_qqha: rinde,
+          notas:'', imagenes:'', fecha_carga: new Date().toISOString(),
+          lote_cosechado: cosechado ? 'Sí' : 'No',
+          tipo_registro: 'carga_masiva', ha_plan: haPlan, semilla_up: semillaUp
+        }
+      })
+    });
+
+    // Actualizar caché local para que quede consistente si se vuelve a filtrar
+    ultimaPorLote[idLote] = {
+      id_lote: idLote, fecha_visita: fechaHoy, lote_sembrado: sembrado,
+      rinde_estimado_qqha: rinde, lote_cosechado: cosechado ? 'Sí' : 'No',
+      ha_plan: haPlan, semilla_up: semillaUp, tipo_registro: 'carga_masiva'
+    };
+
+    tr.classList.add('fila-guardada');
+    btn.textContent = '✓ Guardado';
+    showToast('Lote ' + (productor||'') + (campo?' · '+campo:'') + ' actualizado');
+    setTimeout(()=>{ btn.textContent = original; btn.disabled = false; }, 1800);
+  } catch(e) {
+    showToast('Error al guardar: ' + e.message, true);
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+function showToast(msg, error=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = error ? 'show error' : 'show';
+  setTimeout(()=>t.classList.remove('show'), 4000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+cargarDatos();
+</script>
+</body>
+</html>

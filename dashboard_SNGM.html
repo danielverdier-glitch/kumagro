@@ -505,7 +505,7 @@ function renderSeguimiento(datos) {
   const idsVisibles = new Set(datos.map(l=>l.id_lote));
   const ultimaPorLote = {};
   allVisitas.forEach(v=>{
-    if (!idsVisibles.has(v.id_lote)) return;
+    if (!idsVisibles.has(v.id_lote) || v.tipo_registro === 'carga_masiva') return;
     const actual = ultimaPorLote[v.id_lote];
     if (!actual || v.fecha_visita > actual.fecha_visita) ultimaPorLote[v.id_lote] = v;
   });
@@ -790,7 +790,7 @@ function renderKpiHasYSiembra(datos, ultima) {
 
 function renderKpiVisitas(datos) {
   const idsVisibles = new Set(datos.map(l=>l.id_lote));
-  const visitasVisibles = allVisitas.filter(v=>idsVisibles.has(v.id_lote));
+  const visitasVisibles = allVisitas.filter(v=>idsVisibles.has(v.id_lote) && v.tipo_registro !== 'carga_masiva');
   const visitasUnicas = new Set(visitasVisibles.map(v=>v.id_visita));
   document.getElementById('seg-kpi-visitas').textContent = visitasUnicas.size;
 }

@@ -948,7 +948,7 @@ function doPost(e) {
           'id_lote','lote','lat_visita','lng_visita','lote_sembrado','fecha_siembra',
           'fecha_cosecha_estimada','estado_fenologico','estado_malezas','malezas_resistentes',
           'observacion_plagas','condicion_cultivo','rinde_estimado_qqha','notas','imagenes',
-          'fecha_carga','lote_cosechado']);
+          'fecha_carga','lote_cosechado','tipo_registro','ha_plan','semilla_up']);
       }
 
       sheet.appendRow([
@@ -956,7 +956,8 @@ function doPost(e) {
         d.id_lote, d.lote||'', d.lat_visita, d.lng_visita, d.lote_sembrado?1:0, d.fecha_siembra||'',
         d.fecha_cosecha_estimada||'', d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
         d.observacion_plagas||'', d.condicion_cultivo||'', d.rinde_estimado_qqha||'',
-        d.notas||'', d.imagenes||'', d.fecha_carga, d.lote_cosechado||'No'
+        d.notas||'', d.imagenes||'', d.fecha_carga, d.lote_cosechado||'No',
+        d.tipo_registro||'visita', d.ha_plan||'', d.semilla_up||''
       ]);
     }
 
