@@ -130,7 +130,7 @@
         </select>
       </div>
     </div>
-    <div class="grid-2">
+    <div class="grid-3">
       <div id="variedad-otra-wrap" style="display:none">
         <label>Especificar variedad</label>
         <input type="text" id="variedad-otra" placeholder="Nombre de la variedad">
@@ -138,6 +138,13 @@
       <div>
         <label>Fecha estimada de siembra <span class="required">*</span></label>
         <input type="date" id="fecha-siembra">
+      </div>
+      <div>
+        <label>Siembra</label>
+        <select id="siembra">
+          <option value="1ra">1ra</option>
+          <option value="2da">2da</option>
+        </select>
       </div>
     </div>
   </div>
@@ -196,11 +203,11 @@
           <tr>
             <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
             <th>Provincia</th><th>Departamento</th><th>Región</th>
-            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th><th>Estado</th>
+            <th>Variedad</th><th>Siembra estimada</th><th>1ra/2da</th><th>Área (ha)</th><th>Estado</th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="11">Aún no hay lotes agregados</td></tr>
+          <tr class="empty-row"><td colspan="12">Aún no hay lotes agregados</td></tr>
         </tbody>
       </table>
     </div>
@@ -226,7 +233,7 @@
           <tr>
             <th>#</th><th>Productor</th><th>Campo</th><th>Lote</th>
             <th>Provincia</th><th>Departamento</th><th>Región</th>
-            <th>Variedad</th><th>Siembra estimada</th><th>Área (ha)</th>
+            <th>Variedad</th><th>Siembra estimada</th><th>1ra/2da</th><th>Área (ha)</th>
           </tr>
         </thead>
         <tbody id="tabla-body-gracias"></tbody>
@@ -605,6 +612,7 @@ async function agregarLote() {
   const varSel      = document.getElementById('variedad').value;
   const variedad    = varSel==='otra' ? document.getElementById('variedad-otra').value.trim() : varSel;
   const fechaSiembra= document.getElementById('fecha-siembra').value;
+  const siembra     = document.getElementById('siembra').value || '1ra';
 
   if(!productor)    {showToast('Completá el nombre del productor',true);return;}
   if(!nombreCampo)  {showToast('Completá el nombre del campo',true);return;}
@@ -636,7 +644,7 @@ async function agregarLote() {
     : await generarKMZDesdePoligono(coords, idLote, nombreArchivo);
   const loteObj = {
     id_lote:idLote, productor, nombre_campo:nombreCampo, lote,
-    variedad, fecha_siembra_estimada:fechaSiembra, campana,
+    variedad, fecha_siembra_estimada:fechaSiembra, siembra, campana,
     provincia, departamento, region, area_ha:area,
     poligono_geojson:JSON.stringify(currentPolygon),
     fecha_carga:new Date().toISOString().slice(0,10),
@@ -681,7 +689,7 @@ function calcCampana(fechaSiembraStr) {
 function actualizarTabla() {
   const tbody=document.getElementById('tabla-body');
   if(!lotesAgregados.length){
-    tbody.innerHTML='<tr class="empty-row"><td colspan="11">Aún no hay lotes agregados</td></tr>';return;
+    tbody.innerHTML='<tr class="empty-row"><td colspan="12">Aún no hay lotes agregados</td></tr>';return;
   }
   tbody.innerHTML=lotesAgregados.map((l,i)=>`
     <tr>
@@ -694,6 +702,7 @@ function actualizarTabla() {
       <td>${l.region||'—'}</td>
       <td><span class="badge">${l.variedad}</span></td>
       <td>${formatFecha(l.fecha_siembra_estimada)}</td>
+      <td>${l.siembra||'1ra'}</td>
       <td>${l.area_ha}</td>
       <td>${l._guardado?'✓ Guardado':'⚠ Pendiente'}</td>
     </tr>`).join('');
@@ -819,6 +828,7 @@ function mostrarPaginaGracias() {
       <td>${l.region||'—'}</td>
       <td><span class="badge">${l.variedad}</span></td>
       <td>${formatFecha(l.fecha_siembra_estimada)}</td>
+      <td>${l.siembra||'1ra'}</td>
       <td>${l.area_ha}</td>
     </tr>`).join('');
 
@@ -857,6 +867,7 @@ function resetForm() {
   ['productor','nombre-campo','lote','variedad-otra'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('variedad').value='';
   document.getElementById('fecha-siembra').value='';
+  document.getElementById('siembra').value='1ra';
   document.getElementById('variedad-otra-wrap').style.display='none';
   document.getElementById('polygon-preview').style.display='none';
   document.getElementById('kmz-info').style.display='none';
@@ -908,14 +919,14 @@ function doPost(e) {
         sheet.appendRow(['id_lote','productor','nombre_campo','lote','variedad',
           'fecha_siembra_estimada','campana','provincia','departamento','area_ha',
           'poligono_geojson','fecha_carga','latitud_centroide','longitud_centroide','kmz_filename',
-          'region']);
+          'region','siembra']);
       }
 
       sheet.appendRow([
         d.id_lote, d.productor, d.nombre_campo, d.lote||'', d.variedad,
         d.fecha_siembra_estimada, d.campana, d.provincia, d.departamento, d.area_ha,
         d.poligono_geojson, d.fecha_carga, d.latitud_centroide, d.longitud_centroide,
-        d.kmz_filename||'', d.region||''
+        d.kmz_filename||'', d.region||'', d.siembra||'1ra'
       ]);
     }
 
@@ -948,7 +959,7 @@ function doPost(e) {
           'id_lote','lote','lat_visita','lng_visita','lote_sembrado','fecha_siembra',
           'fecha_cosecha_estimada','estado_fenologico','estado_malezas','malezas_resistentes',
           'observacion_plagas','condicion_cultivo','rinde_estimado_qqha','notas','imagenes',
-          'fecha_carga','lote_cosechado','tipo_registro','ha_plan','semilla_up','variedad']);
+          'fecha_carga','lote_cosechado','tipo_registro','ha_plan','semilla_up','variedad','siembra']);
       }
 
       sheet.appendRow([
@@ -957,7 +968,7 @@ function doPost(e) {
         d.fecha_cosecha_estimada||'', d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
         d.observacion_plagas||'', d.condicion_cultivo||'', d.rinde_estimado_qqha||'',
         d.notas||'', d.imagenes||'', d.fecha_carga, d.lote_cosechado||'No',
-        d.tipo_registro||'visita', d.ha_plan||'', d.semilla_up||'', d.variedad||''
+        d.tipo_registro||'visita', d.ha_plan||'', d.semilla_up||'', d.variedad||'', d.siembra||''
       ]);
     }
 

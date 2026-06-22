@@ -94,6 +94,7 @@
   #map-lotes{height:560px;border-radius:8px;border:1.5px solid var(--border)}
   .chart-wrap{position:relative}
   #chart-pie-wrap{height:230px}
+  #chart-pie-siembra-wrap{height:230px}
   #chart-linea-wrap{height:190px}
   #chart-campanas-wrap{height:380px}
   #seg-chart-condicion-wrap,#seg-chart-fenologico-wrap{height:230px}
@@ -162,10 +163,14 @@
         </div>
       </div>
 
-      <div class="grid-2">
+      <div class="grid-3">
         <div class="card">
           <div class="card-title">Has. por variedad</div>
           <div class="chart-wrap" id="chart-pie-wrap"><canvas id="chart-pie"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Has. por siembra (1ra/2da)</div>
+          <div class="chart-wrap" id="chart-pie-siembra-wrap"><canvas id="chart-pie-siembra"></canvas></div>
         </div>
         <div class="card">
           <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
@@ -318,7 +323,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylfmo_tpnUpfIt
 let allLotes   = [];
 let allVisitas = [];
 let activeTab  = 'principal';
-let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
+let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set(), siembra:new Set() };
 let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
 let mapMini=null, mapLotes=null;
 let layersMini=[], layersLotes=[];
@@ -345,7 +350,8 @@ const FILTROS_DEF = [
   {key:'provincia',    label:'Provincia'},
   {key:'productor',    label:'Productor'},
   {key:'nombre_campo', label:'Campo'},
-  {key:'variedad',     label:'Variedad'}
+  {key:'variedad',     label:'Variedad'},
+  {key:'siembra',      label:'Siembra (1ra/2da)'}
 ];
 
 // ─── CARGA DE DATOS ───────────────────────────────────────
@@ -359,6 +365,7 @@ async function cargarDatos() {
     const visitas = await resVisitas.json();
     allLotes   = (Array.isArray(data) ? data : []).map(normalizarLote);
     allVisitas = Array.isArray(visitas) ? visitas : [];
+    aplicarUltimaSiembra();
     construirColoresCampana();
     document.getElementById('loading-bar').style.display = 'none';
   } catch(e) {
@@ -379,7 +386,8 @@ function normalizarLote(l) {
     productor: l.productor || 'Sin dato',
     nombre_campo: l.nombre_campo || 'Sin dato',
     variedad: l.variedad || 'Sin dato',
-    campana: l.campana || 'Sin dato'
+    campana: l.campana || 'Sin dato',
+    siembra: l.siembra || '1ra'
   };
 }
 
@@ -389,6 +397,21 @@ function aFechaISO(v) {
   const d = new Date(v);
   if (isNaN(d)) return '';
   return d.toISOString().slice(0,10);
+}
+
+// Toma el último dato de "siembra" cargado por visita o carga masiva
+// y lo aplica al lote, ya que ese indicador puede editarse desde ahí.
+function aplicarUltimaSiembra() {
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v.siembra) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l.siembra = u.siembra;
+  });
 }
 
 // ─── FILTROS ──────────────────────────────────────────────
@@ -626,6 +649,7 @@ function renderPrincipal(datos) {
   renderMapaMini(datos);
   renderKpi(datos);
   renderPieVariedad(datos);
+  renderPieSiembra(datos);
   const selGeo = document.getElementById('rank-geo-select');
   if (selGeo) selGeo.value = rankingGeo;
   renderRanking('rank-provincias', datos, rankingGeo);
@@ -648,6 +672,25 @@ function renderPieVariedad(datos) {
 
   if (charts.pie) charts.pie.destroy();
   charts.pie = new Chart(document.getElementById('chart-pie'), {
+    type: 'pie',
+    data: { labels, datasets:[{ data: valores, backgroundColor: colores }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } }
+    }
+  });
+}
+
+function renderPieSiembra(datos) {
+  const porSiembra = { '1ra':0, '2da':0 };
+  datos.forEach(l => { porSiembra[l.siembra==='2da'?'2da':'1ra'] += l.area_ha; });
+  const labels = ['1ra siembra','2da siembra'];
+  const valores = [porSiembra['1ra'], porSiembra['2da']];
+  const colores = ['#3a6b2a','#c8a04a'];
+
+  if (charts.pieSiembra) charts.pieSiembra.destroy();
+  charts.pieSiembra = new Chart(document.getElementById('chart-pie-siembra'), {
     type: 'pie',
     data: { labels, datasets:[{ data: valores, backgroundColor: colores }] },
     options: {
