@@ -32,6 +32,9 @@
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead tr{background:var(--gh-green-dark);color:white}
   thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap;position:sticky;top:0}
+  thead th[data-col]{cursor:pointer;user-select:none}
+  thead th[data-col]:hover{background:var(--gh-green)}
+  thead th .sort-arrow{margin-left:4px;opacity:.7;font-size:10px}
   tbody tr{border-bottom:1px solid var(--border)}
   tbody tr.fila-guardada{background:var(--gh-green-light)}
   tbody td{padding:7px 9px;vertical-align:middle;white-space:nowrap}
@@ -94,12 +97,12 @@
     <div class="table-wrap">
       <table id="tabla-lotes">
         <thead>
-          <tr>
-            <th>Productor</th><th>Región</th><th>Campo</th><th>Lote</th>
-            <th>Has plan</th><th>Has inscriptas</th><th>Variedad</th><th>Semilla / UP</th>
-            <th>¿Sembrado?</th><th>Fecha siembra</th><th>Fecha cosecha</th>
-            <th>Rendimiento (qq/ha)</th><th>Producción (qq)</th>
-            <th>¿Cosechado?</th><th></th>
+          <tr id="thead-row">
+            <th data-col="productor">Productor</th><th data-col="region">Región</th><th data-col="nombre_campo">Campo</th><th data-col="lote">Lote</th>
+            <th data-col="ha_plan">Has plan</th><th data-col="area_ha">Has inscriptas</th><th data-col="variedad">Variedad</th><th data-col="semilla_up">Semilla / UP</th>
+            <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th><th data-col="fecha_cosecha">Fecha cosecha</th>
+            <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (qq)</th>
+            <th data-col="cosechado">¿Cosechado?</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
@@ -188,6 +191,92 @@ function lotesFiltrados() {
   );
 }
 
+// ─── ORDEN ────────────────────────────────────────────────
+let sortState = { col: null, dir: 'asc' };
+const COLS_TEXTO  = ['productor','region','nombre_campo','lote','variedad','semilla_up'];
+const COLS_NUM    = ['ha_plan','area_ha','rinde','produccion'];
+const COLS_BOOL   = ['sembrado','cosechado'];
+const COLS_FECHA  = ['fecha_siembra','fecha_cosecha'];
+
+function valorOrden(l, col) {
+  const ultima = ultimaPorLote[l.id_lote] || null;
+  const areaHa = parseFloat(l.area_ha) || 0;
+  switch(col) {
+    case 'productor': return l.productor || '';
+    case 'region': return l.region || '';
+    case 'nombre_campo': return l.nombre_campo || '';
+    case 'lote': return l.lote || '';
+    case 'variedad': return (ultima && ultima.variedad ? ultima.variedad : (l.variedad||''));
+    case 'semilla_up': return (ultima && ultima.semilla_up ? ultima.semilla_up : 'Semilla');
+    case 'ha_plan': return ultima && ultima.ha_plan !== '' && ultima.ha_plan != null ? parseFloat(ultima.ha_plan) : areaHa;
+    case 'area_ha': return areaHa;
+    case 'rinde': return ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : 0;
+    case 'produccion': {
+      const r = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : 0;
+      return r * areaHa;
+    }
+    case 'sembrado': return ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
+    case 'cosechado': return ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
+    case 'fecha_siembra': return ultima ? aFechaISO(ultima.fecha_siembra) : '';
+    case 'fecha_cosecha': return ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
+    default: return '';
+  }
+}
+
+function compararCol(a, b, col, dir) {
+  const va = valorOrden(a, col);
+  const vb = valorOrden(b, col);
+  let res;
+  if (COLS_NUM.includes(col)) {
+    res = (va||0) - (vb||0);
+  } else if (COLS_BOOL.includes(col)) {
+    res = (va?1:0) - (vb?1:0);
+  } else if (COLS_FECHA.includes(col)) {
+    res = String(va).localeCompare(String(vb));
+  } else {
+    res = String(va).localeCompare(String(vb), 'es', {sensitivity:'base'});
+  }
+  return dir === 'desc' ? -res : res;
+}
+
+function lotesOrdenados(lotes) {
+  const arr = lotes.slice();
+  if (sortState.col) {
+    arr.sort((a,b) => compararCol(a, b, sortState.col, sortState.dir));
+  } else {
+    arr.sort((a,b) => {
+      let r = String(a.productor||'').localeCompare(String(b.productor||''), 'es', {sensitivity:'base'});
+      if (r === 0) r = String(a.region||'').localeCompare(String(b.region||''), 'es', {sensitivity:'base'});
+      if (r === 0) r = String(a.nombre_campo||'').localeCompare(String(b.nombre_campo||''), 'es', {sensitivity:'base'});
+      return r;
+    });
+  }
+  return arr;
+}
+
+function ordenarPor(col) {
+  if (sortState.col === col) {
+    sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.col = col;
+    sortState.dir = 'asc';
+  }
+  actualizarIndicadoresOrden();
+  renderTabla();
+}
+
+function actualizarIndicadoresOrden() {
+  document.querySelectorAll('#thead-row th[data-col]').forEach(th=>{
+    th.querySelector('.sort-arrow')?.remove();
+    if (th.dataset.col === sortState.col) {
+      const arrow = document.createElement('span');
+      arrow.className = 'sort-arrow';
+      arrow.textContent = sortState.dir === 'asc' ? '▲' : '▼';
+      th.appendChild(arrow);
+    }
+  });
+}
+
 // ─── TABLA ────────────────────────────────────────────────
 function filaHTML(l) {
   const ultima = ultimaPorLote[l.id_lote] || null;
@@ -229,7 +318,7 @@ function filaHTML(l) {
 
 function renderTabla() {
   const tbody = document.getElementById('tabla-body');
-  const lotes = lotesFiltrados();
+  const lotes = lotesOrdenados(lotesFiltrados());
   if (!lotes.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="15">No hay lotes para los filtros seleccionados</td></tr>';
     return;
@@ -318,6 +407,9 @@ function showToast(msg, error=false) {
 }
 
 // ─── INIT ─────────────────────────────────────────────────
+document.querySelectorAll('#thead-row th[data-col]').forEach(th=>{
+  th.addEventListener('click', ()=>ordenarPor(th.dataset.col));
+});
 cargarDatos();
 </script>
 </body>
