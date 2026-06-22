@@ -96,6 +96,16 @@
   #chart-pie-wrap{height:230px}
   #chart-linea-wrap{height:190px}
   #chart-campanas-wrap{height:380px}
+  #seg-chart-condicion-wrap,#seg-chart-fenologico-wrap{height:230px}
+  #seg-chart-pronostico-wrap{height:260px}
+  #seg-chart-cosecha-wrap{height:230px}
+
+  .progress-wrap{width:100%;max-width:260px;background:var(--bg);border-radius:8px;height:14px;overflow:hidden;margin-top:10px;border:1px solid var(--border)}
+  .progress-bar{height:100%;background:linear-gradient(90deg,var(--gh-green),var(--gh-green-dark));border-radius:8px;width:0;transition:width .3s}
+  .grid-fenologico{display:grid;grid-template-columns:1fr 150px;gap:14px;align-items:center}
+  .planta-box{display:flex;flex-direction:column;align-items:center;text-align:center}
+  .planta-label{font-size:12px;color:var(--text-soft);margin-top:8px}
+  @media(max-width:900px){.grid-fenologico{grid-template-columns:1fr}}
 
   .dev-placeholder{padding:70px 20px;text-align:center;color:var(--text-soft)}
   .dev-placeholder .icon{font-size:42px;margin-bottom:14px}
@@ -217,12 +227,72 @@
       </div>
     </div>
 
-    <!-- TAB SEGUIMIENTO (en construcción) -->
+    <!-- TAB SEGUIMIENTO -->
     <div class="tab-panel" id="tab-seguimiento">
-      <div class="card">
-        <div class="card-title">Seguimiento</div>
-        <p style="font-size:13px;color:var(--text-soft)">Esta sección está en construcción. Próximamente vas a poder ver acá el seguimiento evolutivo de cada lote.</p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">Has. inscriptas</div>
+          <div class="kpi-box" style="height:auto">
+            <div><span class="kpi-value" id="seg-kpi-ha">0</span><span class="kpi-unit">ha</span></div>
+            <div class="progress-wrap"><div class="progress-bar" id="seg-ha-bar"></div></div>
+            <div class="kpi-sub" id="seg-ha-sub">0% sembrado</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Visitas realizadas</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="seg-kpi-visitas">0</span></div>
+            <div class="kpi-label">Visitas registradas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Pronóstico de rendimiento</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="seg-kpi-rinde">0</span><span class="kpi-unit">qq/ha</span></div>
+            <div class="kpi-label">Promedio ponderado por ha</div>
+            <div class="kpi-sub" id="seg-kpi-tn">0 Tn totales</div>
+          </div>
+        </div>
       </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Condición del cultivo (ha, último dato por lote)</div>
+          <div class="chart-wrap" id="seg-chart-condicion-wrap"><canvas id="seg-chart-condicion"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Estado fenológico</div>
+          <div class="grid-fenologico">
+            <div class="chart-wrap" id="seg-chart-fenologico-wrap"><canvas id="seg-chart-fenologico"></canvas></div>
+            <div class="planta-box">
+              <div id="planta-soja-svg"></div>
+              <div class="planta-label">El programa en promedio está en <strong id="planta-estado-txt">—</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Evolución del pronóstico de rendimiento (Tn)</div>
+        <div class="chart-wrap" id="seg-chart-pronostico-wrap"><canvas id="seg-chart-pronostico"></canvas></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Avance de cosecha</div>
+          <div class="kpi-box" style="height:auto">
+            <div><span class="kpi-value" id="seg-kpi-cosecha">0</span><span class="kpi-unit">%</span></div>
+            <div class="progress-wrap"><div class="progress-bar" id="seg-cosecha-bar"></div></div>
+            <div class="kpi-sub" id="seg-cosecha-sub">0 de 0 ha cosechadas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Evolución de la cosecha (ha)</div>
+          <div class="chart-wrap" id="seg-chart-cosecha-wrap"><canvas id="seg-chart-cosecha"></canvas></div>
+        </div>
+      </div>
+
     </div>
 
   </main>
@@ -244,7 +314,12 @@ let activeTab  = 'principal';
 let filtros    = { campana:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set() };
 let mapMini=null, mapLotes=null;
 let layersMini=[], layersLotes=[];
-let charts = { pie:null, linea:null, campanas:null };
+let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null };
+
+const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
+const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
+const COLORES_CONDICION = {'Lote perdido':'#7a1f1f','Muy mala':'#b33','Mala':'#d97706','Regular':'#c8a04a','Buena':'#7ab648','Muy Buena':'#3a8f2e','Excelente':'#2a4e1e','Sin dato':'#aaa'};
+const COLORES_FENOLOGICO = ['#a8d08d','#7ab648','#3a8f2e','#2a4e1e','#7c3aed','#c8a04a','#d97706','#8a6a2a'];
 
 // ─── COLOR POR CAMPAÑA (compartido entre gráfico y mapas) ──
 const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
@@ -399,6 +474,20 @@ function renderTabActiva() {
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
   if (activeTab === 'visitas')        renderSeguimiento(datos);
+  if (activeTab === 'seguimiento')    renderSeguimientoDashboard(datos);
+}
+
+function esTrue(v) { return v===true||v===1||v==='1'; }
+
+function ultimaPorLoteVisitas(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const ultima = {};
+  allVisitas.forEach(v=>{
+    if (!idsVisibles.has(v.id_lote)) return;
+    const actual = ultima[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) > aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
+  });
+  return ultima;
 }
 
 // ─── TAB SEGUIMIENTO ──────────────────────────────────────
@@ -655,6 +744,264 @@ function renderComparativo(datos) {
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } },
       scales:{ y:{ title:{display:true,text:'Hectáreas'} } }
+    }
+  });
+}
+
+// ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
+function renderSeguimientoDashboard(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+
+  renderKpiHasYSiembra(datos, ultima);
+  renderKpiVisitas(datos);
+  renderKpiRendimiento(datos, ultima);
+  renderPieCondicion(datos, ultima);
+  renderFenologico(datos, ultima);
+  renderPronosticoEvolucion(datos);
+  renderCosecha(datos, ultima);
+}
+
+function renderKpiHasYSiembra(datos, ultima) {
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  let haSembradas = 0;
+  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.lote_sembrado)) haSembradas += l.area_ha; });
+  const pct = totalHa ? (haSembradas/totalHa*100) : 0;
+  document.getElementById('seg-kpi-ha').textContent = totalHa.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('seg-ha-bar').style.width = Math.min(pct,100).toFixed(0)+'%';
+  document.getElementById('seg-ha-sub').textContent = `${pct.toFixed(0)}% sembrado (${haSembradas.toLocaleString('es-AR',{maximumFractionDigits:1})} ha)`;
+}
+
+function renderKpiVisitas(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const visitasVisibles = allVisitas.filter(v=>idsVisibles.has(v.id_lote));
+  const visitasUnicas = new Set(visitasVisibles.map(v=>v.id_visita));
+  document.getElementById('seg-kpi-visitas').textContent = visitasUnicas.size;
+}
+
+function renderKpiRendimiento(datos, ultima) {
+  let sumaProducto = 0, haConRinde = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    if (!isNaN(rinde) && rinde > 0) { sumaProducto += rinde*l.area_ha; haConRinde += l.area_ha; }
+  });
+  const rindeProm = haConRinde ? sumaProducto/haConRinde : 0;
+  const tnTotal = sumaProducto/10; // qq/ha * ha = qq; 1 Tn = 10 qq
+  document.getElementById('seg-kpi-rinde').textContent = rindeProm.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('seg-kpi-tn').textContent = tnTotal.toLocaleString('es-AR',{maximumFractionDigits:0}) + ' Tn totales';
+}
+
+function renderPieCondicion(datos, ultima) {
+  const porCondicion = {};
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const cond = (v && v.condicion_cultivo) ? v.condicion_cultivo : 'Sin dato';
+    porCondicion[cond] = (porCondicion[cond]||0) + l.area_ha;
+  });
+  const orden = [...CONDICIONES_CULTIVO, 'Sin dato'].filter(c => porCondicion[c]);
+  const labels = orden, valores = orden.map(c=>porCondicion[c]), colores = orden.map(c=>COLORES_CONDICION[c]||'#aaa');
+
+  if (charts.condicion) charts.condicion.destroy();
+  charts.condicion = new Chart(document.getElementById('seg-chart-condicion'), {
+    type:'pie',
+    data:{ labels, datasets:[{ data:valores, backgroundColor:colores }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'right',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} }
+    }
+  });
+}
+
+function renderFenologico(datos, ultima) {
+  const porEstado = {};
+  let sumaIndiceHa = 0, haConEstado = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const estado = v ? v.estado_fenologico : '';
+    const idx = ESTADOS_FENOLOGICOS.indexOf(estado);
+    const key = idx >= 0 ? estado : 'Sin dato';
+    porEstado[key] = (porEstado[key]||0) + l.area_ha;
+    if (idx >= 0) { sumaIndiceHa += idx*l.area_ha; haConEstado += l.area_ha; }
+  });
+  const orden = [...ESTADOS_FENOLOGICOS, 'Sin dato'].filter(e => porEstado[e]);
+  const labels = orden, valores = orden.map(e=>porEstado[e]);
+  const colores = orden.map(e => { const i = ESTADOS_FENOLOGICOS.indexOf(e); return i>=0 ? COLORES_FENOLOGICO[i] : '#aaa'; });
+
+  if (charts.fenologico) charts.fenologico.destroy();
+  charts.fenologico = new Chart(document.getElementById('seg-chart-fenologico'), {
+    type:'pie',
+    data:{ labels, datasets:[{ data:valores, backgroundColor:colores }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'right',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} }
+    }
+  });
+
+  const indicePromedio = haConEstado ? Math.round(sumaIndiceHa/haConEstado) : -1;
+  const estadoPromedio = indicePromedio >= 0 ? ESTADOS_FENOLOGICOS[indicePromedio] : null;
+  document.getElementById('planta-soja-svg').innerHTML = svgPlantaSoja(indicePromedio);
+  document.getElementById('planta-estado-txt').textContent = estadoPromedio || 'Sin datos suficientes';
+}
+
+// ─── Figura procedural de planta de soja según estado fenológico ──
+function svgPlantaSoja(indice) {
+  if (indice < 0) indice = 0;
+  const stemHeight = 55 + indice*11;
+  const leafPairs = Math.min(indice+2, 6);
+  const amarillo = indice >= 7;
+  const colorTallo = amarillo ? '#8a6a2a' : '#3a8f2e';
+  const colorHoja = amarillo ? '#c9a227' : (indice>=1 ? '#3a8f2e' : '#7ab648');
+  const conFlores = indice >= 3 && indice <= 4;
+  const conVainas = indice >= 4;
+  const colorVaina = indice <= 5 ? '#5b8f4e' : (indice <= 6 ? '#9c8a3a' : '#8a6a2a');
+
+  const baseY = 185, topY = baseY - stemHeight;
+  let hojas = '';
+  for (let i=0; i<leafPairs; i++) {
+    const y = baseY - 12 - (stemHeight-20) * (i/(leafPairs-1||1));
+    const lado = i%2===0 ? 1 : -1;
+    hojas += `
+      <g transform="translate(70,${y})">
+        <ellipse cx="${lado*16}" cy="-2" rx="11" ry="6" fill="${colorHoja}" transform="rotate(${lado*-25})"/>
+        <ellipse cx="${lado*26}" cy="4" rx="9" ry="5" fill="${colorHoja}" transform="rotate(${lado*-10})"/>
+        <ellipse cx="${lado*8}" cy="6" rx="9" ry="5" fill="${colorHoja}" transform="rotate(${lado*-35})"/>
+      </g>`;
+  }
+  let flores = '';
+  if (conFlores) {
+    for (let i=0;i<4;i++) {
+      flores += `<circle cx="${64+i*4}" cy="${topY+6+i*3}" r="2.4" fill="#9c6bd1"/>`;
+    }
+  }
+  let vainas = '';
+  if (conVainas) {
+    const nVainas = Math.min(indice-3, 5);
+    for (let i=0;i<nVainas;i++) {
+      const y = baseY - 18 - i*16;
+      const lado = i%2===0?1:-1;
+      vainas += `<ellipse cx="${70+lado*13}" cy="${y}" rx="5" ry="9" fill="${colorVaina}" stroke="#2a4e1e" stroke-width="0.5" transform="rotate(${lado*20} ${70+lado*13} ${y})"/>`;
+    }
+  }
+  return `<svg width="130" height="190" viewBox="0 0 140 195">
+    <line x1="70" y1="${baseY}" x2="70" y2="${topY}" stroke="${colorTallo}" stroke-width="4" stroke-linecap="round"/>
+    ${hojas}
+    ${vainas}
+    ${flores}
+    <ellipse cx="70" cy="${baseY+3}" rx="20" ry="4" fill="#5a4a2f" opacity=".35"/>
+  </svg>`;
+}
+
+// ─── Evolución temporal del pronóstico de rendimiento ────
+function claveAFecha(key) {
+  const mesAlmacen = Math.floor(key/100), dia = key%100;
+  const mes = mesAlmacen > 12 ? mesAlmacen - 12 : mesAlmacen;
+  return `${String(dia).padStart(2,'0')}/${MESES_ABR[mes-1]}`;
+}
+
+function renderPronosticoEvolucion(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
+
+  const INICIO_KEY = 9*100 + 15;        // 15-sep
+  const FIN_KEY    = (5+12)*100 + 30;   // 30-may
+
+  const eventos = allVisitas
+    .filter(v => idsVisibles.has(v.id_lote) && v.rinde_estimado_qqha)
+    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_visita), rinde: parseFloat(v.rinde_estimado_qqha) }))
+    .filter(v => v.fechaISO && !isNaN(v.rinde))
+    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
+    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
+    .sort((a,b) => a.key - b.key);
+
+  const claves = new Set([INICIO_KEY, FIN_KEY]);
+  eventos.forEach(e => claves.add(e.key));
+  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
+
+  const estado = {};
+  let cursor = 0;
+  const data = clavesOrdenadas.map(k => {
+    while (cursor < eventos.length && eventos[cursor].key <= k) {
+      estado[eventos[cursor].id_lote] = eventos[cursor].rinde;
+      cursor++;
+    }
+    let tn = 0;
+    Object.keys(estado).forEach(idLote => {
+      const area = areaPorLote[idLote]; if (!area) return;
+      tn += estado[idLote] * area / 10;
+    });
+    return tn;
+  });
+
+  const labels = clavesOrdenadas.map(claveAFecha);
+
+  if (charts.pronostico) charts.pronostico.destroy();
+  charts.pronostico = new Chart(document.getElementById('seg-chart-pronostico'), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Pronóstico (Tn)', data, borderColor:'#3a6b2a', backgroundColor:'#3a6b2a26', fill:true, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:0})} Tn`}} },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'Tn',font:{size:10}}} }
+    }
+  });
+}
+
+// ─── Avance de cosecha ────────────────────────────────────
+function renderCosecha(datos, ultima) {
+  let haCosechadas = 0;
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.cosechado)) haCosechadas += l.area_ha; });
+  const pct = totalHa ? (haCosechadas/totalHa*100) : 0;
+  document.getElementById('seg-kpi-cosecha').textContent = pct.toFixed(0);
+  document.getElementById('seg-cosecha-bar').style.width = Math.min(pct,100).toFixed(0)+'%';
+  document.getElementById('seg-cosecha-sub').textContent = `${haCosechadas.toLocaleString('es-AR',{maximumFractionDigits:1})} de ${totalHa.toLocaleString('es-AR',{maximumFractionDigits:1})} ha cosechadas`;
+
+  renderCosechaEvolucion(datos);
+}
+
+function renderCosechaEvolucion(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
+
+  const INICIO_KEY = (3+12)*100 + 15;  // 15-mar
+  const FIN_KEY    = (4+12)*100 + 15;  // 15-abr
+
+  const eventos = allVisitas
+    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.cosechado) && v.fecha_cosecha_real)
+    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_real) }))
+    .filter(v => v.fechaISO)
+    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
+    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
+    .sort((a,b) => a.key - b.key);
+
+  const claves = new Set([INICIO_KEY, FIN_KEY]);
+  eventos.forEach(e => claves.add(e.key));
+  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
+
+  const cosechados = new Set();
+  let cursor = 0;
+  const data = clavesOrdenadas.map(k => {
+    while (cursor < eventos.length && eventos[cursor].key <= k) {
+      cosechados.add(eventos[cursor].id_lote);
+      cursor++;
+    }
+    let ha = 0;
+    cosechados.forEach(idLote => { ha += areaPorLote[idLote] || 0; });
+    return ha;
+  });
+
+  const labels = clavesOrdenadas.map(claveAFecha);
+
+  if (charts.cosecha) charts.cosecha.destroy();
+  charts.cosecha = new Chart(document.getElementById('seg-chart-cosecha'), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Ha cosechadas', data, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:true, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'ha',font:{size:10}}} }
     }
   });
 }

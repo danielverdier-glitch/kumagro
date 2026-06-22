@@ -155,11 +155,12 @@
           <tr>
             <th>¿Sembrado?</th><th>Lote</th><th>Variedad</th><th>Fecha siembra</th><th>Fecha est. cosecha</th>
             <th>Estado fenológico</th><th>Estado malezas</th><th>¿Resistentes?</th>
-            <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th><th>Notas</th><th></th>
+            <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th>
+            <th>¿Cosechado?</th><th>Fecha cosecha real</th><th>Notas</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="13">Elegí un productor y un campo para ver sus lotes</td></tr>
+          <tr class="empty-row"><td colspan="15">Elegí un productor y un campo para ver sus lotes</td></tr>
         </tbody>
       </table>
     </div>
@@ -389,6 +390,8 @@ function filaLoteHTML(l, manual) {
   const fechaSiembraPrevia  = ultima ? aFechaISO(ultima.fecha_siembra) : '';
   const fechaCosechaPrevia  = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
+  const cosechadoPrevio = ultima ? (ultima.cosechado===true||ultima.cosechado===1||ultima.cosechado==='1') : false;
+  const fechaCosechaRealPrevia = ultima ? aFechaISO(ultima.fecha_cosecha_real) : '';
   const loteCelda = manual
     ? `<input type="text" class="f-lote-nombre" placeholder="Lote" value="${escAttr(l.lote||'')}" style="min-width:80px">`
     : `<strong>${l.lote||'—'}</strong>`;
@@ -418,6 +421,8 @@ function filaLoteHTML(l, manual) {
       </select>
     </td>
     <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
+    <td><input type="date" class="f-fecha-cosecha-real" value="${fechaCosechaRealPrevia}"></td>
     <td><textarea class="f-notas" placeholder="Notas..."></textarea></td>
     <td>${manual?'<button type="button" class="btn btn-secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button>':''}</td>
   </tr>`;
@@ -426,7 +431,7 @@ function filaLoteHTML(l, manual) {
 function renderTablaLotes(lotes) {
   const tbody = document.getElementById('tabla-body');
   if (!lotes.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Elegí un productor y un campo para ver sus lotes</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Elegí un productor y un campo para ver sus lotes</td></tr>';
     return;
   }
   tbody.innerHTML = lotes.map(l=>filaLoteHTML(l,false)).join('');
@@ -583,10 +588,12 @@ async function guardarVisita() {
     const plagas            = get('.f-plagas').value.trim();
     const condicion         = get('.f-condicion').value;
     const rinde             = get('.f-rinde').value;
+    const cosechado         = get('.f-cosechado').checked;
+    const fechaCosechaReal  = get('.f-fecha-cosecha-real').value;
     const notas             = get('.f-notas').value.trim();
 
     const algoCompletado = sembrado || fechaSiembra || fechaCosecha || estadoFenologico || estadoMalezas ||
-      resistentes || plagas || condicion || rinde || notas || (esManual && loteNombre);
+      resistentes || plagas || condicion || rinde || cosechado || fechaCosechaReal || notas || (esManual && loteNombre);
     if (!algoCompletado) return;
 
     filas.push({
@@ -595,7 +602,7 @@ async function guardarVisita() {
       estado_fenologico: estadoFenologico,
       estado_malezas: estadoMalezas, malezas_resistentes: resistentes,
       observacion_plagas: plagas, condicion_cultivo: condicion,
-      rinde_estimado_qqha: rinde, notas
+      rinde_estimado_qqha: rinde, cosechado, fecha_cosecha_real: fechaCosechaReal, notas
     });
   });
 
@@ -606,7 +613,8 @@ async function guardarVisita() {
       id_lote: '', lote: '',
       lote_sembrado: false, fecha_siembra: '', fecha_cosecha_estimada: '',
       estado_fenologico: '', estado_malezas: '', malezas_resistentes: false,
-      observacion_plagas: '', condicion_cultivo: '', rinde_estimado_qqha: '', notas: ''
+      observacion_plagas: '', condicion_cultivo: '', rinde_estimado_qqha: '',
+      cosechado: false, fecha_cosecha_real: '', notas: ''
     });
   }
 
