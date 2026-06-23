@@ -213,16 +213,14 @@ function idCampo(productor, nombreCampo, campana) {
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
   try {
-    const [resLotes, resVisitas, resCab, resSem] = await Promise.all([
+    const [resLotes, resVisitas, resEntregas] = await Promise.all([
       fetch(APPS_SCRIPT_URL + '?action=getLotes'),
       fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
-      fetch(APPS_SCRIPT_URL + '?action=getEntregas'),
-      fetch(APPS_SCRIPT_URL + '?action=getEntregasSemanas')
+      fetch(APPS_SCRIPT_URL + '?action=getEntregas')
     ]);
-    const data    = await resLotes.json();
-    const visitas = await resVisitas.json();
-    const cab     = await resCab.json();
-    const sem     = await resSem.json();
+    const data     = await resLotes.json();
+    const visitas  = await resVisitas.json();
+    const entregas = await resEntregas.json();
 
     allLotes = (Array.isArray(data) ? data : []).map(l => ({
       ...l,
@@ -234,13 +232,15 @@ async function cargarDatos() {
     }));
     allVisitas = Array.isArray(visitas) ? visitas : [];
 
+    const COLS_FIJAS = ['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion'];
     entregasCabecera = {};
-    (Array.isArray(cab) ? cab : []).forEach(r => { entregasCabecera[r.id_campo] = r; });
-
     entregasSemanas = {};
-    (Array.isArray(sem) ? sem : []).forEach(r => {
-      if (!entregasSemanas[r.id_campo]) entregasSemanas[r.id_campo] = {};
-      entregasSemanas[r.id_campo][r.semana_inicio] = r.tn_entregada;
+    (Array.isArray(entregas) ? entregas : []).forEach(r => {
+      entregasCabecera[r.id_campo] = r;
+      entregasSemanas[r.id_campo] = {};
+      Object.keys(r).forEach(k => {
+        if (!COLS_FIJAS.includes(k) && r[k] !== '') entregasSemanas[r.id_campo][k] = r[k];
+      });
     });
 
     document.getElementById('loading-bar').style.display = 'none';
@@ -458,28 +458,23 @@ async function guardarFila(btn) {
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
+  const semanasData = semanas.map((s, i) => ({
+    inicio: s.inicio,
+    tn_entregada: i === semanas.length - 1 ? ultimaSemana : (parseInt(semanasInputs[i].value) || 0)
+  }));
+
   try {
     await fetch(APPS_SCRIPT_URL, {
       method:'POST', mode:'no-cors',
       body: JSON.stringify({
-        action: 'updateEntregaCabecera',
-        data: { id_campo: idCampoVal, productor, nombre_campo: campo, campana, tn_embolse: embolse }
+        action: 'guardarEntrega',
+        data: { id_campo: idCampoVal, productor, nombre_campo: campo, campana, tn_embolse: embolse, semanas: semanasData }
       })
     });
     entregasCabecera[idCampoVal] = { id_campo: idCampoVal, tn_embolse: embolse };
 
-    if (!entregasSemanas[idCampoVal]) entregasSemanas[idCampoVal] = {};
-    for (let i = 0; i < semanas.length; i++) {
-      const valor = i === semanas.length - 1 ? ultimaSemana : (parseInt(semanasInputs[i].value) || 0);
-      await fetch(APPS_SCRIPT_URL, {
-        method:'POST', mode:'no-cors',
-        body: JSON.stringify({
-          action: 'updateEntregaSemana',
-          data: { id_campo: idCampoVal, semana_inicio: semanas[i].inicio, tn_entregada: valor }
-        })
-      });
-      entregasSemanas[idCampoVal][semanas[i].inicio] = valor;
-    }
+    entregasSemanas[idCampoVal] = {};
+    semanasData.forEach(s => { entregasSemanas[idCampoVal][s.inicio] = s.tn_entregada; });
 
     btn.textContent = '✓ Guardado';
     mostrarToast('Entregas de ' + productor + ' · ' + campo + ' guardadas');

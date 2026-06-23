@@ -68,40 +68,43 @@ function doPost(e) {
       ]);
     }
 
-    // Usado por entregas_SNGM.html para guardar/actualizar el Tn embolse
-    // de un campo (productor + nombre_campo + campaña). Upsert por id_campo.
-    if (payload.action === 'updateEntregaCabecera') {
+    // Usado por entregas_SNGM.html para guardar/actualizar, en una única
+    // fila por campo (productor + nombre_campo + campaña), el Tn embolse
+    // y las Tn entregadas de cada semana. Cada semana es una columna
+    // dinámica cuyo encabezado es su fecha (semana_inicio); si la semana
+    // no existe todavía como columna, se crea. Upsert por id_campo.
+    if (payload.action === 'guardarEntrega') {
       const d = payload.data;
       const ss = SpreadsheetApp.openById(SHEET_ID);
       let sheet = ss.getSheetByName('Entregas');
       if (!sheet) sheet = ss.insertSheet('Entregas');
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion']);
-      }
-      const filaIdx = buscarFilaPorIdCampo(sheet, d.id_campo);
-      const fila = [d.id_campo, d.productor, d.nombre_campo, d.campana, d.tn_embolse, new Date().toISOString()];
-      if (filaIdx > -1) sheet.getRange(filaIdx, 1, 1, fila.length).setValues([fila]);
-      else sheet.appendRow(fila);
-    }
 
-    // Usado por entregas_SNGM.html para guardar/actualizar las Tn entregadas
-    // de una semana puntual de un campo. Upsert por id_campo + semana_inicio.
-    if (payload.action === 'updateEntregaSemana') {
-      const d = payload.data;
-      const ss = SpreadsheetApp.openById(SHEET_ID);
-      let sheet = ss.getSheetByName('EntregasSemanas');
-      if (!sheet) sheet = ss.insertSheet('EntregasSemanas');
-      if (sheet.getLastRow() === 0) {
-        sheet.appendRow(['id_campo','semana_inicio','tn_entregada','fecha_actualizacion']);
-      }
-      const filas = sheet.getDataRange().getValues();
-      let filaIdx = -1;
-      for (let i = 1; i < filas.length; i++) {
-        if (filas[i][0] === d.id_campo && filas[i][1] === d.semana_inicio) { filaIdx = i + 1; break; }
-      }
-      const fila = [d.id_campo, d.semana_inicio, d.tn_entregada, new Date().toISOString()];
+      const COLS_FIJAS = ['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion'];
+      if (sheet.getLastRow() === 0) sheet.appendRow(COLS_FIJAS);
+
+      let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+
+      (d.semanas || []).forEach(s => {
+        if (headers.indexOf(s.inicio) === -1) {
+          sheet.getRange(1, sheet.getLastColumn() + 1).setValue(s.inicio);
+          headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+        }
+      });
+
+      const filaIdx = buscarFilaPorIdCampo(sheet, d.id_campo);
+      const filaActual = filaIdx > -1 ? sheet.getRange(filaIdx, 1, 1, headers.length).getValues()[0] : [];
+      const fila = headers.map((h, i) => filaActual[i] !== undefined ? filaActual[i] : '');
+
+      fila[headers.indexOf('id_campo')] = d.id_campo;
+      fila[headers.indexOf('productor')] = d.productor;
+      fila[headers.indexOf('nombre_campo')] = d.nombre_campo;
+      fila[headers.indexOf('campana')] = d.campana;
+      fila[headers.indexOf('tn_embolse')] = d.tn_embolse;
+      fila[headers.indexOf('fecha_actualizacion')] = new Date().toISOString();
+      (d.semanas || []).forEach(s => { fila[headers.indexOf(s.inicio)] = s.tn_entregada; });
+
       if (filaIdx > -1) sheet.getRange(filaIdx, 1, 1, fila.length).setValues([fila]);
-      else sheet.appendRow(fila);
+      else sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     }
 
     return ContentService
@@ -126,14 +129,15 @@ function buscarFilaPorIdCampo(sheet, idCampo) {
 }
 
 // Usado por dashboard_SNGM.html (?action=getLotes), visitas_SNGM.html (?action=getVisitas)
-// y entregas_SNGM.html (?action=getEntregas / ?action=getEntregasSemanas).
+// y entregas_SNGM.html (?action=getEntregas). En getEntregas, cada fila trae
+// además de las columnas fijas (id_campo, productor, etc.) una columna por
+// cada semana cargada, con el encabezado siendo la fecha de inicio de semana.
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || 'getLotes';
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const nombresHoja = {
     getVisitas: 'Visitas',
-    getEntregas: 'Entregas',
-    getEntregasSemanas: 'EntregasSemanas'
+    getEntregas: 'Entregas'
   };
   const sheet = nombresHoja[action] ? ss.getSheetByName(nombresHoja[action]) : ss.getActiveSheet();
   if (!sheet) {
