@@ -68,6 +68,42 @@ function doPost(e) {
       ]);
     }
 
+    // Usado por entregas_SNGM.html para guardar/actualizar el Tn embolse
+    // de un campo (productor + nombre_campo + campaña). Upsert por id_campo.
+    if (payload.action === 'updateEntregaCabecera') {
+      const d = payload.data;
+      const ss = SpreadsheetApp.openById(SHEET_ID);
+      let sheet = ss.getSheetByName('Entregas');
+      if (!sheet) sheet = ss.insertSheet('Entregas');
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion']);
+      }
+      const filaIdx = buscarFilaPorIdCampo(sheet, d.id_campo);
+      const fila = [d.id_campo, d.productor, d.nombre_campo, d.campana, d.tn_embolse, new Date().toISOString()];
+      if (filaIdx > -1) sheet.getRange(filaIdx, 1, 1, fila.length).setValues([fila]);
+      else sheet.appendRow(fila);
+    }
+
+    // Usado por entregas_SNGM.html para guardar/actualizar las Tn entregadas
+    // de una semana puntual de un campo. Upsert por id_campo + semana_inicio.
+    if (payload.action === 'updateEntregaSemana') {
+      const d = payload.data;
+      const ss = SpreadsheetApp.openById(SHEET_ID);
+      let sheet = ss.getSheetByName('EntregasSemanas');
+      if (!sheet) sheet = ss.insertSheet('EntregasSemanas');
+      if (sheet.getLastRow() === 0) {
+        sheet.appendRow(['id_campo','semana_inicio','tn_entregada','fecha_actualizacion']);
+      }
+      const filas = sheet.getDataRange().getValues();
+      let filaIdx = -1;
+      for (let i = 1; i < filas.length; i++) {
+        if (filas[i][0] === d.id_campo && filas[i][1] === d.semana_inicio) { filaIdx = i + 1; break; }
+      }
+      const fila = [d.id_campo, d.semana_inicio, d.tn_entregada, new Date().toISOString()];
+      if (filaIdx > -1) sheet.getRange(filaIdx, 1, 1, fila.length).setValues([fila]);
+      else sheet.appendRow(fila);
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({status:'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -79,11 +115,27 @@ function doPost(e) {
   }
 }
 
-// Usado por dashboard_SNGM.html (?action=getLotes) y visitas_SNGM.html (?action=getVisitas).
+// Busca la fila (1-based, incluye encabezado) cuya columna id_campo coincide.
+// Devuelve -1 si no existe.
+function buscarFilaPorIdCampo(sheet, idCampo) {
+  const filas = sheet.getDataRange().getValues();
+  for (let i = 1; i < filas.length; i++) {
+    if (filas[i][0] === idCampo) return i + 1;
+  }
+  return -1;
+}
+
+// Usado por dashboard_SNGM.html (?action=getLotes), visitas_SNGM.html (?action=getVisitas)
+// y entregas_SNGM.html (?action=getEntregas / ?action=getEntregasSemanas).
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || 'getLotes';
   const ss = SpreadsheetApp.openById(SHEET_ID);
-  const sheet = action === 'getVisitas' ? ss.getSheetByName('Visitas') : ss.getActiveSheet();
+  const nombresHoja = {
+    getVisitas: 'Visitas',
+    getEntregas: 'Entregas',
+    getEntregasSemanas: 'EntregasSemanas'
+  };
+  const sheet = nombresHoja[action] ? ss.getSheetByName(nombresHoja[action]) : ss.getActiveSheet();
   if (!sheet) {
     return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
   }

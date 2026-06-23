@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Entregas SNGM</title>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+  .container{max-width:1500px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:24px}
+  .map-hint{font-size:12px;color:var(--text-soft);margin-bottom:18px;display:flex;align-items:flex-start;gap:6px}
+  .map-hint::before{content:"i";background:var(--gh-green-light);color:var(--gh-green);border-radius:50%;width:18px;height:18px;min-width:18px;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:bold}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr.grupo th{background:var(--gh-gold-light);color:var(--gh-green-dark);text-align:center;font-size:11px;border-left:1px solid var(--border)}
+  thead tr.cols th{background:var(--gh-green-dark);color:white;padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.03em;white-space:nowrap}
+  thead tr.cols th.semana{text-align:center;border-left:1px solid rgba(255,255,255,.15)}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:var(--gh-green-light)}
+  tbody td{padding:7px 10px;vertical-align:middle;white-space:nowrap}
+  tbody td.semana{border-left:1px solid var(--border);text-align:center}
+  tbody td input[type=number]{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
+  tbody td input[type=number]:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
+  tbody td input.tn-cosecha{background:var(--bg);color:var(--text-soft);font-weight:600}
+  tbody td input.saved{border-color:var(--gh-green)}
+  .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.error{background:#b33}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Equipo comercial</div>
+</header>
+
+<div class="container">
+  <h1>Entregas de cosecha</h1>
+  <p class="page-sub">Cargá el embolse y la entrega semanal de cada campo de la campaña en curso.</p>
+
+  <div id="loading-bar" class="map-hint">Cargando campos de la campaña...</div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table id="tabla-entregas">
+        <thead>
+          <tr class="grupo" id="thead-grupo"></tr>
+          <tr class="cols" id="thead-cols">
+            <th>Productor</th><th>Campo</th><th>Tn totales</th><th>Fecha de cosecha</th>
+            <th>Tn embolse</th><th>Tn en cosecha</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body">
+          <tr class="empty-row"><td colspan="6">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7c7ut7TKGm7Lv8J4rZmzpRGASKFBhuT5qjro8OYjnmFseQ3rjPvDtj-uft_A6asCa/exec';
+const MESES_ABR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+let allLotes = [];
+let allVisitas = [];
+let entregasCabecera = {};  // id_campo -> {tn_embolse}
+let entregasSemanas  = {};  // id_campo -> { semana_inicio(YYYY-MM-DD) -> tn_entregada }
+let semanas = [];           // [{inicio:'YYYY-MM-DD', label:'dd/mm', mesLabel:'jun'}]
+let campos  = [];           // filas calculadas a renderizar
+
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+function esTrue(v) { return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si'; }
+
+function campanaMasReciente() {
+  const campanasOrd = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanasOrd[campanasOrd.length-1];
+}
+
+// Última visita (o carga masiva) registrada por lote, según fecha_visita.
+// Ante fechas iguales prevalece el último registro de la planilla.
+function ultimaPorLoteVisitas(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const ultima = {};
+  allVisitas.forEach(v=>{
+    if (!idsVisibles.has(v.id_lote)) return;
+    const actual = ultima[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
+  });
+  return ultima;
+}
+
+// ─── Semanas calendario reales (lunes a domingo) entre el 1 de junio
+// y el 15 de octubre del año de cosecha de la campaña. La campaña tiene
+// formato "AA/AA" (ej. "24/25"); el año de cosecha es el segundo segmento.
+function anioCosechaDeCampana(campana) {
+  const partes = String(campana).split('/');
+  const sufijo = partes[1] || partes[0];
+  const n = parseInt(sufijo, 10);
+  if (isNaN(n)) return new Date().getFullYear();
+  return n < 100 ? 2000 + n : n;
+}
+
+function lunesDeSemana(fecha) {
+  const d = new Date(fecha);
+  const diaSemana = d.getDay(); // 0=domingo
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + offset);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function construirSemanas(anio) {
+  const inicio = new Date(anio, 5, 1);   // 1 de junio
+  const fin    = new Date(anio, 9, 15);  // 15 de octubre
+  const out = [];
+  let cursor = lunesDeSemana(inicio);
+  while (cursor <= fin) {
+    const iso = cursor.toISOString().slice(0,10);
+    out.push({
+      inicio: iso,
+      label: `${String(cursor.getDate()).padStart(2,'0')}/${MESES_ABR[cursor.getMonth()]}`,
+      mesLabel: MESES_ABR[cursor.getMonth()]
+    });
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return out;
+}
+
+function idCampo(productor, nombreCampo, campana) {
+  return [productor, nombreCampo, campana].join('||');
+}
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  try {
+    const [resLotes, resVisitas, resCab, resSem] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
+      fetch(APPS_SCRIPT_URL + '?action=getEntregas'),
+      fetch(APPS_SCRIPT_URL + '?action=getEntregasSemanas')
+    ]);
+    const data    = await resLotes.json();
+    const visitas = await resVisitas.json();
+    const cab     = await resCab.json();
+    const sem     = await resSem.json();
+
+    allLotes = (Array.isArray(data) ? data : []).map(l => ({
+      ...l,
+      area_ha: parseFloat(l.area_ha) || 0,
+      productor: l.productor || 'Sin dato',
+      nombre_campo: l.nombre_campo || 'Sin dato',
+      campana: l.campana || 'Sin dato'
+    }));
+    allVisitas = Array.isArray(visitas) ? visitas : [];
+
+    entregasCabecera = {};
+    (Array.isArray(cab) ? cab : []).forEach(r => { entregasCabecera[r.id_campo] = r; });
+
+    entregasSemanas = {};
+    (Array.isArray(sem) ? sem : []).forEach(r => {
+      if (!entregasSemanas[r.id_campo]) entregasSemanas[r.id_campo] = {};
+      entregasSemanas[r.id_campo][r.semana_inicio] = r.tn_entregada;
+    });
+
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+    return;
+  }
+  calcularCampos();
+  renderTabla();
+}
+
+function calcularCampos() {
+  const campanaActual = campanaMasReciente();
+  const lotesCampana = allLotes.filter(l => l.campana === campanaActual);
+  semanas = construirSemanas(anioCosechaDeCampana(campanaActual));
+
+  const ultima = ultimaPorLoteVisitas(lotesCampana);
+  const porCampo = {};
+
+  lotesCampana.forEach(l => {
+    const key = idCampo(l.productor, l.nombre_campo, l.campana);
+    if (!porCampo[key]) {
+      porCampo[key] = {
+        id_campo: key, productor: l.productor, nombre_campo: l.nombre_campo,
+        campana: l.campana, tnTotales: 0, fechas: []
+      };
+    }
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    if (!isNaN(rinde) && rinde > 0) porCampo[key].tnTotales += rinde * l.area_ha / 10;
+    const fCosecha = v ? aFechaISO(v.fecha_cosecha_estimada) : '';
+    if (fCosecha) porCampo[key].fechas.push(fCosecha);
+  });
+
+  campos = Object.values(porCampo).sort((a,b) =>
+    a.productor.localeCompare(b.productor) || a.nombre_campo.localeCompare(b.nombre_campo)
+  );
+}
+
+function formatearFechaCosecha(fechas) {
+  if (!fechas.length) return 'Sin dato';
+  const ordenadas = [...fechas].sort();
+  const fmt = iso => { const [a,m,d] = iso.split('-'); return `${d}/${m}`; };
+  if (ordenadas.length === 1 || ordenadas[0] === ordenadas[ordenadas.length-1]) return fmt(ordenadas[0]);
+  return `${fmt(ordenadas[0])} - ${fmt(ordenadas[ordenadas.length-1])}`;
+}
+
+// ─── RENDER ───────────────────────────────────────────────
+function renderTabla() {
+  renderEncabezados();
+  const tbody = document.getElementById('tabla-body');
+  if (!campos.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No hay campos cargados para la campaña actual</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = campos.map(c => {
+    const tnEmbolse = entregasCabecera[c.id_campo] ? parseFloat(entregasCabecera[c.id_campo].tn_embolse) || 0 : 0;
+    const tnCosecha = Math.max(0, c.tnTotales - tnEmbolse);
+    const semCeldas = semanas.map(s => {
+      const valor = (entregasSemanas[c.id_campo] && entregasSemanas[c.id_campo][s.inicio]) || '';
+      return `<td class="semana"><input type="number" min="0" step="0.01" value="${valor}"
+        data-id-campo="${c.id_campo}" data-semana="${s.inicio}" onchange="guardarSemana(this)"></td>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td>${c.productor}</td>
+        <td>${c.nombre_campo}</td>
+        <td>${c.tnTotales.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+        <td>${formatearFechaCosecha(c.fechas)}</td>
+        <td><input type="number" min="0" max="${c.tnTotales}" step="0.01" value="${tnEmbolse || ''}"
+          data-id-campo="${c.id_campo}" data-tn-totales="${c.tnTotales}" onchange="guardarEmbolse(this)"></td>
+        <td><input type="number" class="tn-cosecha" value="${tnCosecha.toLocaleString('es-AR',{maximumFractionDigits:1})}" disabled></td>
+        ${semCeldas}
+      </tr>`;
+  }).join('');
+}
+
+function renderEncabezados() {
+  const theadGrupo = document.getElementById('thead-grupo');
+  const theadCols  = document.getElementById('thead-cols');
+
+  let html = '<th colspan="6"></th>';
+  let i = 0;
+  while (i < semanas.length) {
+    const mes = semanas[i].mesLabel;
+    let span = 0;
+    while (i < semanas.length && semanas[i].mesLabel === mes) { span++; i++; }
+    html += `<th colspan="${span}">Entrega bolsa · ${mes}</th>`;
+  }
+  theadGrupo.innerHTML = html;
+
+  const colsBase = '<th>Productor</th><th>Campo</th><th>Tn totales</th><th>Fecha de cosecha</th><th>Tn embolse</th><th>Tn en cosecha</th>';
+  theadCols.innerHTML = colsBase + semanas.map(s => `<th class="semana">${s.label}</th>`).join('');
+}
+
+// ─── GUARDADO ───────────────────────────────────────────────
+function mostrarToast(msg, error) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = error ? 'show error' : 'show';
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function guardarEmbolse(input) {
+  const idCampoVal = input.dataset.idCampo;
+  const tnTotales = parseFloat(input.dataset.tnTotales) || 0;
+  let valor = parseFloat(input.value) || 0;
+  if (valor < 0) valor = 0;
+  if (valor > tnTotales) valor = tnTotales;
+  input.value = valor || '';
+
+  const campo = campos.find(c => c.id_campo === idCampoVal);
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify({
+        action: 'updateEntregaCabecera',
+        data: { id_campo: idCampoVal, productor: campo.productor, nombre_campo: campo.nombre_campo, campana: campo.campana, tn_embolse: valor }
+      })
+    });
+    entregasCabecera[idCampoVal] = { id_campo: idCampoVal, tn_embolse: valor };
+    renderTabla();
+    mostrarToast('Tn embolse guardado');
+  } catch(e) {
+    mostrarToast('Error al guardar: ' + e.message, true);
+  }
+}
+
+async function guardarSemana(input) {
+  const idCampoVal = input.dataset.idCampo;
+  const semanaInicio = input.dataset.semana;
+  let valor = parseFloat(input.value) || 0;
+  if (valor < 0) valor = 0;
+  input.value = valor || '';
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify({
+        action: 'updateEntregaSemana',
+        data: { id_campo: idCampoVal, semana_inicio: semanaInicio, tn_entregada: valor }
+      })
+    });
+    if (!entregasSemanas[idCampoVal]) entregasSemanas[idCampoVal] = {};
+    entregasSemanas[idCampoVal][semanaInicio] = valor;
+    mostrarToast('Entrega guardada');
+  } catch(e) {
+    mostrarToast('Error al guardar: ' + e.message, true);
+  }
+}
+
+cargarDatos();
+</script>
+</body>
+</html>
