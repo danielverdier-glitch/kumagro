@@ -109,6 +109,7 @@
   <div class="card">
     <div class="table-wrap">
       <table id="tabla-entregas">
+        <colgroup id="tabla-colgroup"></colgroup>
         <thead>
           <tr class="grupo" id="thead-grupo"></tr>
           <tr class="cols" id="thead-cols">
@@ -365,7 +366,17 @@ function onInputFila(input) {
   tr.querySelector('.f-tn-cosecha').value = Math.max(0, Math.round(tnTotales - embolse));
 }
 
+const ANCHOS_FIJOS = [140,140,90,130,90,100]; // Productor..Tn en cosecha
+
+function renderColgroup() {
+  const cols = ANCHOS_FIJOS.map(w => `<col style="width:${w}px">`).join('')
+    + semanas.map(() => '<col style="width:80px">').join('')
+    + '<col style="width:90px">'; // Guardar
+  document.getElementById('tabla-colgroup').innerHTML = cols;
+}
+
 function renderEncabezados() {
+  renderColgroup();
   const theadGrupo = document.getElementById('thead-grupo');
   const theadCols  = document.getElementById('thead-cols');
 
