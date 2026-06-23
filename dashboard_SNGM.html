@@ -261,7 +261,7 @@
           <table id="tabla-campos">
             <thead>
               <tr>
-                <th>Productor</th><th>Campo</th><th>Fecha siembra</th>
+                <th>Productor</th><th>Campo</th><th>Has. inscriptas</th><th>Fecha siembra</th>
                 <th>Rendimiento (qq/ha)</th><th>Producción (Tn)</th>
                 <th>Fecha cosecha</th><th>Condición</th>
               </tr>
@@ -636,7 +636,7 @@ function renderCampos(datos) {
   const ultima = ultimaPorLoteVisitas(datos);
   const tbody = document.getElementById('tabla-campos-body');
   if (!datos.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No hay lotes para los filtros aplicados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-msg">No hay lotes para los filtros aplicados</td></tr>';
     return;
   }
   const filas = [...datos].sort((a,b)=> a.productor.localeCompare(b.productor) || a.nombre_campo.localeCompare(b.nombre_campo));
@@ -648,6 +648,7 @@ function renderCampos(datos) {
     <tr>
       <td>${l.productor||'—'}</td>
       <td>${l.nombre_campo||'—'}</td>
+      <td>${l.area_ha.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
       <td>${v ? formatFechaCorta(v.fecha_siembra) : '—'}</td>
       <td>${(!isNaN(rinde) && rinde > 0) ? rinde.toLocaleString('es-AR',{maximumFractionDigits:1}) : '—'}</td>
       <td>${!isNaN(produccionTn) ? produccionTn.toLocaleString('es-AR',{maximumFractionDigits:1}) : '—'}</td>
