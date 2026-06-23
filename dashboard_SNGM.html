@@ -285,8 +285,41 @@
     <!-- TAB COMPARATIVO -->
     <div class="tab-panel" id="tab-comparativo">
       <div class="card">
-        <div class="card-title">Hectáreas cargadas por campaña</div>
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Cargadas por campaña</span>
+          <select id="chart-campanas-unidad" onchange="cambiarUnidadChartCampanas(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
         <div class="chart-wrap" id="chart-campanas-wrap"><canvas id="chart-campanas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Evolución de siembras (15 sept - 15 feb)</span>
+          <select id="chart-siembras-unidad" onchange="cambiarUnidadChartSiembras(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="pct">% avance</option>
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-siembras-wrap"><canvas id="chart-siembras"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Evolución de cosechas (15 sept - 15 feb)</span>
+          <select id="chart-cosechas-unidad" onchange="cambiarUnidadChartCosechas(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="pct">% avance</option>
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-cosechas-wrap"><canvas id="chart-cosechas"></canvas></div>
       </div>
     </div>
 
@@ -352,11 +385,17 @@
         <div class="card">
           <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
             <span>Actualización de datos</span>
-            <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
-              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
-              <option value="lotes">Lotes</option>
-              <option value="ha">Hectáreas</option>
-            </select>
+            <div style="display:flex;gap:6px">
+              <select id="semaforo-productor-select" onchange="cambiarSemaforoProductor(this.value)"
+                style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+                <option value="">Todos</option>
+              </select>
+              <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
+                style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+                <option value="lotes">Lotes</option>
+                <option value="ha">Hectáreas</option>
+              </select>
+            </div>
           </div>
           <div class="semaforo-row" id="seg-semaforo" title="Antigüedad del último dato cargado por lote (visita o carga masiva)">
             <div class="semaforo-housing">
@@ -970,11 +1009,39 @@ function renderLineaSiembras(datos) {
 }
 
 // ─── TAB COMPARATIVO ──────────────────────────────────────
+let datosCacheComparativo = null;
+let unidadChartCampanas = 'ha'; // 'ha' | 'tn'
+let unidadChartSiembras = 'pct'; // 'pct' | 'ha' | 'tn'
+let unidadChartCosechas = 'pct'; // 'pct' | 'ha' | 'tn'
+
 function renderComparativo(datos) {
+  datosCacheComparativo = datos;
+  renderChartCampanas();
+  renderChartSiembras();
+  renderChartCosechas();
+}
+
+function renderChartCampanas() {
+  const datos = datosCacheComparativo;
   const porCampana = {};
-  datos.forEach(l => porCampana[l.campana] = (porCampana[l.campana]||0) + l.area_ha);
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = { ha:0, tn:0 };
+    porCampana[l.campana].ha += l.area_ha;
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    if (!isNaN(rinde) && rinde > 0) {
+      const tn = rinde * l.area_ha / 10;
+      porCampana[l.campana].tn += tn;
+    }
+  });
+
   const labels = Object.keys(porCampana).sort();
-  const valores = labels.map(c=>porCampana[c]);
+  const valores = labels.map(c => porCampana[c][unidadChartCampanas]);
+  const unidadLabel = unidadChartCampanas === 'ha' ? 'Hectáreas' : 'Toneladas';
 
   if (charts.campanas) charts.campanas.destroy();
   charts.campanas = new Chart(document.getElementById('chart-campanas'), {
@@ -982,10 +1049,216 @@ function renderComparativo(datos) {
     data: { labels, datasets:[{ data: valores, backgroundColor:'#3a6b2a', borderRadius:4 }] },
     options: {
       responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } },
-      scales:{ y:{ title:{display:true,text:'Hectáreas'} } }
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartCampanas}` } }
+      },
+      scales:{ y:{ title:{display:true,text:unidadLabel} } }
     }
   });
+}
+
+function cambiarUnidadChartCampanas(valor) {
+  unidadChartCampanas = valor;
+  renderChartCampanas();
+}
+
+function renderChartSiembras() {
+  const datos = datosCacheComparativo;
+  const INICIO_KEY = 915;
+  const FIN_KEY = 1215;
+  const porCampana = {};
+
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = {};
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && esTrue(v.lote_sembrado) && v.fecha_siembra) {
+      const fecha = new Date(aFechaISO(v.fecha_siembra));
+      if (!isNaN(fecha)) {
+        const mes = fecha.getMonth() + 1;
+        const dia = fecha.getDate();
+        const mesAjustado = mes < 9 ? mes + 12 : mes;
+        const key = mesAjustado * 100 + dia;
+
+        if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+        porCampana[l.campana][key].ha += l.area_ha;
+
+        const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+        if (!isNaN(rinde) && rinde > 0) {
+          porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+        }
+      }
+    }
+  });
+
+  const campanas = Object.keys(porCampana).sort();
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  campanas.forEach(c => Object.keys(porCampana[c]).forEach(k => clavesSet.add(Number(k))));
+  const claves = [...clavesSet].sort((a,b) => a-b);
+
+  const keyAFecha = (key) => {
+    const mesReal = key > 1200 ? Math.floor(key/100) - 12 : Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mesReal-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const totalHaPorCampana = {};
+  campanas.forEach(c => {
+    totalHaPorCampana[c] = datos.filter(l => l.campana === c).reduce((s,l) => s + l.area_ha, 0);
+  });
+
+  const datasets = campanas.map(c => {
+    let acumulado = { ha:0, tn:0 };
+    const datosCampana = porCampana[c];
+    const data = claves.map(k => {
+      acumulado.ha += (datosCampana[k]?.ha || 0);
+      acumulado.tn += (datosCampana[k]?.tn || 0);
+      if (unidadChartSiembras === 'pct') {
+        return totalHaPorCampana[c] ? (acumulado.ha / totalHaPorCampana[c] * 100) : 0;
+      } else if (unidadChartSiembras === 'tn') {
+        return acumulado.tn;
+      }
+      return acumulado.ha;
+    });
+    const color = colorCampana(c);
+    return {
+      label: c,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    };
+  });
+
+  const unidadLabel = unidadChartSiembras === 'pct' ? '% avance' : (unidadChartSiembras === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts.siembras) charts.siembras.destroy();
+  charts.siembras = new Chart(document.getElementById('chart-siembras'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: campanas.length > 1, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartSiembras === 'pct' ? '%' : unidadChartSiembras}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartSiembras(valor) {
+  unidadChartSiembras = valor;
+  renderChartSiembras();
+}
+
+function renderChartCosechas() {
+  const datos = datosCacheComparativo;
+  const INICIO_KEY = 915;
+  const FIN_KEY = 1215;
+  const porCampana = {};
+
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = {};
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada) {
+      const fecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
+      if (!isNaN(fecha)) {
+        const mes = fecha.getMonth() + 1;
+        const dia = fecha.getDate();
+        const mesAjustado = mes < 9 ? mes + 12 : mes;
+        const key = mesAjustado * 100 + dia;
+
+        if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+        porCampana[l.campana][key].ha += l.area_ha;
+
+        const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+        if (!isNaN(rinde) && rinde > 0) {
+          porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+        }
+      }
+    }
+  });
+
+  const campanas = Object.keys(porCampana).sort();
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  campanas.forEach(c => Object.keys(porCampana[c]).forEach(k => clavesSet.add(Number(k))));
+  const claves = [...clavesSet].sort((a,b) => a-b);
+
+  const keyAFecha = (key) => {
+    const mesReal = key > 1200 ? Math.floor(key/100) - 12 : Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mesReal-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const totalHaPorCampana = {};
+  campanas.forEach(c => {
+    totalHaPorCampana[c] = datos.filter(l => l.campana === c).reduce((s,l) => s + l.area_ha, 0);
+  });
+
+  const datasets = campanas.map(c => {
+    let acumulado = { ha:0, tn:0 };
+    const datosCampana = porCampana[c];
+    const data = claves.map(k => {
+      acumulado.ha += (datosCampana[k]?.ha || 0);
+      acumulado.tn += (datosCampana[k]?.tn || 0);
+      if (unidadChartCosechas === 'pct') {
+        return totalHaPorCampana[c] ? (acumulado.ha / totalHaPorCampana[c] * 100) : 0;
+      } else if (unidadChartCosechas === 'tn') {
+        return acumulado.tn;
+      }
+      return acumulado.ha;
+    });
+    const color = colorCampana(c);
+    return {
+      label: c,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    };
+  });
+
+  const unidadLabel = unidadChartCosechas === 'pct' ? '% avance' : (unidadChartCosechas === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts.cosechas) charts.cosechas.destroy();
+  charts.cosechas = new Chart(document.getElementById('chart-cosechas'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: campanas.length > 1, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartCosechas === 'pct' ? '%' : unidadChartCosechas}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartCosechas(valor) {
+  unidadChartCosechas = valor;
+  renderChartCosechas();
 }
 
 // ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
@@ -1023,12 +1296,34 @@ function renderKpiVisitas(datos) {
 // carga masiva, vía ultimaPorLoteVisitas que no filtra por tipo_registro)
 // y clasifica cada lote según los días transcurridos desde esa carga.
 let semaforoUnidad = 'lotes'; // 'lotes' | 'ha'
+let semaforoProductor = ''; // productor seleccionado (vacío = todos)
+let datosCacheSeguimiento = null;
+let ultimaCacheSeguimiento = null;
 let semaforoDatos = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
 
 function renderSemaforoActualizacion(datos, ultima) {
+  datosCacheSeguimiento = datos;
+  ultimaCacheSeguimiento = ultima;
+
+  const selectProductor = document.getElementById('semaforo-productor-select');
+  const productoresUnicos = [...new Set(datos.map(l => l.productor || 'Sin dato'))].sort();
+  const opcionesHTML = '<option value="">Todos</option>' + productoresUnicos.map(p => `<option value="${p}">${p}</option>`).join('');
+  selectProductor.innerHTML = opcionesHTML;
+
+  actualizarSemaforo();
+}
+
+function actualizarSemaforo() {
+  const datos = datosCacheSeguimiento;
+  const ultima = ultimaCacheSeguimiento;
   const hoy = new Date();
   const cont = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
-  datos.forEach(l => {
+
+  const datosFiltrados = semaforoProductor
+    ? datos.filter(l => (l.productor || 'Sin dato') === semaforoProductor)
+    : datos;
+
+  datosFiltrados.forEach(l => {
     const v = ultima[l.id_lote];
     let dias = Infinity;
     if (v && v.fecha_visita) {
@@ -1041,6 +1336,11 @@ function renderSemaforoActualizacion(datos, ultima) {
   });
   semaforoDatos = cont;
   pintarSemaforo();
+}
+
+function cambiarSemaforoProductor(valor) {
+  semaforoProductor = valor;
+  actualizarSemaforo();
 }
 
 function cambiarSemaforoUnidad(valor) {
