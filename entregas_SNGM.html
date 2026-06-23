@@ -34,11 +34,14 @@
   tbody tr:hover{background:var(--gh-green-light)}
   tbody td{padding:7px 10px;vertical-align:middle;white-space:nowrap}
   tbody td.semana{border-left:1px solid var(--border);text-align:center}
-  tbody td input[type=number]{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
-  tbody td input[type=number]:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
-  tbody td input.tn-cosecha{background:var(--bg);color:var(--text-soft);font-weight:600}
-  tbody td input.saved{border-color:var(--gh-green)}
+  tbody td input.f-num{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
+  tbody td input.f-num:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
+  tbody td input.f-num:disabled{background:var(--bg);color:var(--text-soft);font-weight:600}
   .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  .btn{padding:7px 16px;border-radius:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font)}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
@@ -65,7 +68,7 @@
           <tr class="grupo" id="thead-grupo"></tr>
           <tr class="cols" id="thead-cols">
             <th>Productor</th><th>Campo</th><th>Tn totales</th><th>Fecha de cosecha</th>
-            <th>Tn embolse</th><th>Tn en cosecha</th>
+            <th>Tn embolse</th><th>Tn en cosecha</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
@@ -246,26 +249,48 @@ function renderTabla() {
   }
 
   tbody.innerHTML = campos.map(c => {
-    const tnEmbolse = entregasCabecera[c.id_campo] ? parseFloat(entregasCabecera[c.id_campo].tn_embolse) || 0 : 0;
-    const tnCosecha = Math.max(0, c.tnTotales - tnEmbolse);
-    const semCeldas = semanas.map(s => {
+    const tnEmbolse = entregasCabecera[c.id_campo] ? parseInt(entregasCabecera[c.id_campo].tn_embolse) || 0 : 0;
+    const tnCosecha = Math.max(0, Math.round(c.tnTotales - tnEmbolse));
+    const semanasEditables = semanas.slice(0, -1);
+
+    const semCeldas = semanas.map((s, i) => {
+      const esUltima = i === semanas.length - 1;
       const valor = (entregasSemanas[c.id_campo] && entregasSemanas[c.id_campo][s.inicio]) || '';
-      return `<td class="semana"><input type="number" min="0" step="0.01" value="${valor}"
-        data-id-campo="${c.id_campo}" data-semana="${s.inicio}" onchange="guardarSemana(this)"></td>`;
+      if (esUltima) {
+        return `<td class="semana"><input type="text" inputmode="numeric" class="f-num f-semana-auto" value="${valor}" disabled></td>`;
+      }
+      return `<td class="semana"><input type="text" inputmode="numeric" class="f-num f-semana" value="${valor}"
+        oninput="onInputFila(this)"></td>`;
     }).join('');
 
     return `
-      <tr>
+      <tr data-id-campo="${c.id_campo}" data-tn-totales="${c.tnTotales}"
+          data-productor="${c.productor}" data-campo="${c.nombre_campo}" data-campana="${c.campana}">
         <td>${c.productor}</td>
         <td>${c.nombre_campo}</td>
         <td>${c.tnTotales.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
         <td>${formatearFechaCosecha(c.fechas)}</td>
-        <td><input type="number" min="0" max="${c.tnTotales}" step="0.01" value="${tnEmbolse || ''}"
-          data-id-campo="${c.id_campo}" data-tn-totales="${c.tnTotales}" onchange="guardarEmbolse(this)"></td>
-        <td><input type="number" class="tn-cosecha" value="${tnCosecha.toLocaleString('es-AR',{maximumFractionDigits:1})}" disabled></td>
+        <td><input type="text" inputmode="numeric" class="f-num f-embolse" value="${tnEmbolse || ''}"
+          oninput="onInputFila(this)"></td>
+        <td><input type="text" inputmode="numeric" class="f-num f-tn-cosecha" value="${tnCosecha || ''}" disabled></td>
         ${semCeldas}
+        <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
       </tr>`;
   }).join('');
+}
+
+// Recalcula, ante cada tecla, la última semana (resto del embolse) y la Tn en cosecha.
+function onInputFila(input) {
+  input.value = input.value.replace(/[^0-9]/g, '');
+  const tr = input.closest('tr');
+  const tnTotales = parseFloat(tr.dataset.tnTotales) || 0;
+  const embolse = parseInt(tr.querySelector('.f-embolse').value) || 0;
+
+  const semanasInputs = [...tr.querySelectorAll('.f-semana')];
+  const sumaSemanas = semanasInputs.reduce((s, i) => s + (parseInt(i.value) || 0), 0);
+
+  tr.querySelector('.f-semana-auto').value = Math.max(0, embolse - sumaSemanas);
+  tr.querySelector('.f-tn-cosecha').value = Math.max(0, Math.round(tnTotales - embolse));
 }
 
 function renderEncabezados() {
@@ -280,10 +305,11 @@ function renderEncabezados() {
     while (i < semanas.length && semanas[i].mesLabel === mes) { span++; i++; }
     html += `<th colspan="${span}">Entrega bolsa · ${mes}</th>`;
   }
+  html += '<th></th>';
   theadGrupo.innerHTML = html;
 
   const colsBase = '<th>Productor</th><th>Campo</th><th>Tn totales</th><th>Fecha de cosecha</th><th>Tn embolse</th><th>Tn en cosecha</th>';
-  theadCols.innerHTML = colsBase + semanas.map(s => `<th class="semana">${s.label}</th>`).join('');
+  theadCols.innerHTML = colsBase + semanas.map(s => `<th class="semana">${s.label}</th>`).join('') + '<th></th>';
 }
 
 // ─── GUARDADO ───────────────────────────────────────────────
@@ -294,52 +320,59 @@ function mostrarToast(msg, error) {
   setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-async function guardarEmbolse(input) {
-  const idCampoVal = input.dataset.idCampo;
-  const tnTotales = parseFloat(input.dataset.tnTotales) || 0;
-  let valor = parseFloat(input.value) || 0;
-  if (valor < 0) valor = 0;
-  if (valor > tnTotales) valor = tnTotales;
-  input.value = valor || '';
+async function guardarFila(btn) {
+  const tr = btn.closest('tr');
+  const idCampoVal = tr.dataset.idCampo;
+  const productor  = tr.dataset.productor;
+  const campo      = tr.dataset.campo;
+  const campana    = tr.dataset.campana;
 
-  const campo = campos.find(c => c.id_campo === idCampoVal);
+  const embolse = parseInt(tr.querySelector('.f-embolse').value) || 0;
+  const semanasInputs = [...tr.querySelectorAll('.f-semana')];
+  const sumaSemanas = semanasInputs.reduce((s, i) => s + (parseInt(i.value) || 0), 0);
+
+  if (sumaSemanas > embolse) {
+    mostrarToast('Las tn de entrega bolsa (' + sumaSemanas + ') superan a las tn embolse (' + embolse + ')', true);
+    return;
+  }
+
+  const ultimaSemana = Math.max(0, embolse - sumaSemanas);
+  tr.querySelector('.f-semana-auto').value = ultimaSemana;
+
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
 
   try {
     await fetch(APPS_SCRIPT_URL, {
       method:'POST', mode:'no-cors',
       body: JSON.stringify({
         action: 'updateEntregaCabecera',
-        data: { id_campo: idCampoVal, productor: campo.productor, nombre_campo: campo.nombre_campo, campana: campo.campana, tn_embolse: valor }
+        data: { id_campo: idCampoVal, productor, nombre_campo: campo, campana, tn_embolse: embolse }
       })
     });
-    entregasCabecera[idCampoVal] = { id_campo: idCampoVal, tn_embolse: valor };
-    renderTabla();
-    mostrarToast('Tn embolse guardado');
-  } catch(e) {
-    mostrarToast('Error al guardar: ' + e.message, true);
-  }
-}
+    entregasCabecera[idCampoVal] = { id_campo: idCampoVal, tn_embolse: embolse };
 
-async function guardarSemana(input) {
-  const idCampoVal = input.dataset.idCampo;
-  const semanaInicio = input.dataset.semana;
-  let valor = parseFloat(input.value) || 0;
-  if (valor < 0) valor = 0;
-  input.value = valor || '';
-
-  try {
-    await fetch(APPS_SCRIPT_URL, {
-      method:'POST', mode:'no-cors',
-      body: JSON.stringify({
-        action: 'updateEntregaSemana',
-        data: { id_campo: idCampoVal, semana_inicio: semanaInicio, tn_entregada: valor }
-      })
-    });
     if (!entregasSemanas[idCampoVal]) entregasSemanas[idCampoVal] = {};
-    entregasSemanas[idCampoVal][semanaInicio] = valor;
-    mostrarToast('Entrega guardada');
+    for (let i = 0; i < semanas.length; i++) {
+      const valor = i === semanas.length - 1 ? ultimaSemana : (parseInt(semanasInputs[i].value) || 0);
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST', mode:'no-cors',
+        body: JSON.stringify({
+          action: 'updateEntregaSemana',
+          data: { id_campo: idCampoVal, semana_inicio: semanas[i].inicio, tn_entregada: valor }
+        })
+      });
+      entregasSemanas[idCampoVal][semanas[i].inicio] = valor;
+    }
+
+    btn.textContent = '✓ Guardado';
+    mostrarToast('Entregas de ' + productor + ' · ' + campo + ' guardadas');
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1800);
   } catch(e) {
     mostrarToast('Error al guardar: ' + e.message, true);
+    btn.textContent = original;
+    btn.disabled = false;
   }
 }
 
