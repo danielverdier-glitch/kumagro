@@ -154,9 +154,9 @@
 
     .tabs{position:static;flex-wrap:nowrap;gap:3px;margin:0 -12px 16px;padding:10px 12px 0;max-width:100%}
     .tab-btn{padding:8px 2px;font-size:9.5px;flex:1;min-width:0;text-align:center}
-    .tab-btn span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .tab-label-full{display:none}
-    .tab-label-mobile{display:block}
+    .tab-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tab-btn .tab-label-full{display:none}
+    .tab-btn .tab-label-mobile{display:block}
 
     .main{overflow-x:hidden;max-width:100%}
     .card{max-width:100%;overflow-x:hidden}
@@ -164,6 +164,10 @@
 
     .kpi-box{padding:4px 0 6px}
     .kpi-value{font-size:32px}
+
+    #tabla-campos{font-size:10px}
+    #tabla-campos thead th{padding:6px 4px;font-size:9px;white-space:normal;word-break:break-word}
+    #tabla-campos tbody td{padding:6px 4px;white-space:normal;word-break:break-word}
   }
 </style>
 </head>
