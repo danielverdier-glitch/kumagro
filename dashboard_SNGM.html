@@ -687,14 +687,13 @@ function ultimaPorLoteVisitas(datos) {
 // ─── TAB SEGUIMIENTO ──────────────────────────────────────
 function renderSeguimiento(datos) {
   const idsVisibles = new Set(datos.map(l=>l.id_lote));
-  const ultimaPorLote = {};
+  const visitasFiltradas = [];
   allVisitas.forEach(v=>{
     if (!idsVisibles.has(v.id_lote) || v.tipo_registro === 'carga_masiva') return;
-    const actual = ultimaPorLote[v.id_lote];
-    if (!actual || v.fecha_visita > actual.fecha_visita) ultimaPorLote[v.id_lote] = v;
+    visitasFiltradas.push(v);
   });
 
-  const filas = Object.values(ultimaPorLote).sort((a,b)=> (b.fecha_visita||'').localeCompare(a.fecha_visita||''));
+  const filas = visitasFiltradas.sort((a,b)=> (b.fecha_visita||'').localeCompare(a.fecha_visita||''));
   const tbody = document.getElementById('tabla-seguimiento-body');
   if (!filas.length) {
     tbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Todavía no hay visitas registradas para los lotes filtrados</td></tr>';
