@@ -68,11 +68,14 @@ function doPost(e) {
       ]);
     }
 
-    // Usado por entregas_SNGM.html para guardar/actualizar, en una única
-    // fila por campo (productor + nombre_campo + campaña), el Tn embolse
-    // y las Tn entregadas de cada semana. Cada semana es una columna
-    // dinámica cuyo encabezado es su fecha (semana_inicio); si la semana
-    // no existe todavía como columna, se crea. Upsert por id_campo.
+    // Usado por entregas_SNGM.html para registrar el Tn embolse y las Tn
+    // entregadas de cada semana de un campo (productor + nombre_campo +
+    // campaña). Cada guardado AGREGA una fila nueva (no pisa la anterior),
+    // para que quede historial de todo lo ingresado. La página siempre
+    // toma la última fila de cada id_campo como valor vigente. Cada semana
+    // es una columna dinámica cuyo encabezado es su fecha (semana_inicio);
+    // si la semana no existe todavía como columna, se crea con formato de
+    // texto para que la fecha no se autoconvierta y rompa la comparación.
     if (payload.action === 'guardarEntrega') {
       const d = payload.data;
       const ss = SpreadsheetApp.openById(SHEET_ID);
@@ -82,19 +85,16 @@ function doPost(e) {
       const COLS_FIJAS = ['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion'];
       if (sheet.getLastRow() === 0) sheet.appendRow(COLS_FIJAS);
 
-      let headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      let headers = headersComoTexto(sheet);
 
       (d.semanas || []).forEach(s => {
         if (headers.indexOf(s.inicio) === -1) {
-          sheet.getRange(1, sheet.getLastColumn() + 1).setValue(s.inicio);
-          headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+          sheet.getRange(1, sheet.getLastColumn() + 1).setNumberFormat('@').setValue(s.inicio);
+          headers = headersComoTexto(sheet);
         }
       });
 
-      const filaIdx = buscarFilaPorIdCampo(sheet, d.id_campo);
-      const filaActual = filaIdx > -1 ? sheet.getRange(filaIdx, 1, 1, headers.length).getValues()[0] : [];
-      const fila = headers.map((h, i) => filaActual[i] !== undefined ? filaActual[i] : '');
-
+      const fila = new Array(headers.length).fill('');
       fila[headers.indexOf('id_campo')] = d.id_campo;
       fila[headers.indexOf('productor')] = d.productor;
       fila[headers.indexOf('nombre_campo')] = d.nombre_campo;
@@ -103,8 +103,7 @@ function doPost(e) {
       fila[headers.indexOf('fecha_actualizacion')] = new Date().toISOString();
       (d.semanas || []).forEach(s => { fila[headers.indexOf(s.inicio)] = s.tn_entregada; });
 
-      if (filaIdx > -1) sheet.getRange(filaIdx, 1, 1, fila.length).setValues([fila]);
-      else sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
+      sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     }
 
     return ContentService
@@ -118,14 +117,13 @@ function doPost(e) {
   }
 }
 
-// Busca la fila (1-based, incluye encabezado) cuya columna id_campo coincide.
-// Devuelve -1 si no existe.
-function buscarFilaPorIdCampo(sheet, idCampo) {
-  const filas = sheet.getDataRange().getValues();
-  for (let i = 1; i < filas.length; i++) {
-    if (filas[i][0] === idCampo) return i + 1;
-  }
-  return -1;
+// Devuelve los encabezados de la fila 1 normalizados a string. Las columnas
+// de semana se crean con formato de texto (ver guardarEntrega), pero esto
+// también cubre columnas viejas que Sheets haya autoconvertido a fecha.
+function headersComoTexto(sheet) {
+  return sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h =>
+    h instanceof Date ? Utilities.formatDate(h, Session.getScriptTimeZone(), 'yyyy-MM-dd') : h
+  );
 }
 
 // Usado por dashboard_SNGM.html (?action=getLotes), visitas_SNGM.html (?action=getVisitas)
@@ -147,7 +145,9 @@ function doGet(e) {
   if (rows.length < 2) {
     return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
   }
-  const headers = rows[0];
+  const headers = rows[0].map(h =>
+    h instanceof Date ? Utilities.formatDate(h, Session.getScriptTimeZone(), 'yyyy-MM-dd') : h
+  );
   const data = rows.slice(1).map(row => {
     const obj = {};
     headers.forEach((h,i) => obj[h] = row[i] instanceof Date ? row[i].toISOString() : row[i]);
