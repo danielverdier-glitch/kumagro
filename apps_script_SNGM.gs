@@ -86,13 +86,14 @@ function doPost(e) {
       if (sheet.getLastRow() === 0) sheet.appendRow(COLS_FIJAS);
 
       let headers = headersComoTexto(sheet);
+      const semanasRecibidas = d.semanas || [];
+      const faltantes = [...new Set(semanasRecibidas.map(s => s.inicio).filter(inicio => headers.indexOf(inicio) === -1))];
 
-      (d.semanas || []).forEach(s => {
-        if (headers.indexOf(s.inicio) === -1) {
-          sheet.getRange(1, sheet.getLastColumn() + 1).setNumberFormat('@').setValue(s.inicio);
-          headers = headersComoTexto(sheet);
-        }
-      });
+      if (faltantes.length) {
+        sheet.getRange(1, sheet.getLastColumn() + 1, 1, faltantes.length)
+          .setNumberFormat('@').setValues([faltantes]);
+        headers = headers.concat(faltantes);
+      }
 
       const fila = new Array(headers.length).fill('');
       fila[headers.indexOf('id_campo')] = d.id_campo;
@@ -101,7 +102,7 @@ function doPost(e) {
       fila[headers.indexOf('campana')] = d.campana;
       fila[headers.indexOf('tn_embolse')] = d.tn_embolse;
       fila[headers.indexOf('fecha_actualizacion')] = new Date().toISOString();
-      (d.semanas || []).forEach(s => { fila[headers.indexOf(s.inicio)] = s.tn_entregada; });
+      semanasRecibidas.forEach(s => { fila[headers.indexOf(s.inicio)] = s.tn_entregada; });
 
       sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     }
