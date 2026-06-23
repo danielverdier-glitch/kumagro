@@ -127,10 +127,31 @@
 
   #loading-bar{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark);margin-bottom:16px}
 
+  .filtros-toggle-mobile{display:none}
+
   @media(max-width:900px){
     .dash-layout{flex-direction:column}
-    .sidebar{width:100%;min-width:0;position:relative;height:auto}
+    .sidebar{width:100%;min-width:0;position:relative;height:auto;padding:14px}
     .grid-2,.grid-3,.grid-4,.grid-mapa-rank{grid-template-columns:1fr}
+
+    header{padding:10px 14px;flex-wrap:wrap}
+    .main{padding:14px 12px 40px}
+    .card{padding:14px}
+    table{font-size:12px}
+    thead th,tbody td{padding:7px 8px}
+    .semaforo-row{flex-wrap:wrap;gap:14px}
+
+    .sidebar-title-desktop{display:none}
+    .filtros-toggle-mobile{display:flex;width:100%;justify-content:space-between;align-items:center;
+      padding:11px 14px;background:var(--gh-green-light);border:1.5px solid var(--border);border-radius:8px;
+      font-size:13px;font-weight:700;color:var(--gh-green-dark);font-family:var(--font);cursor:pointer;margin-bottom:0}
+    .filtros-toggle-mobile .arrow{font-size:11px;transition:transform .15s}
+    .sidebar.filtros-open .filtros-toggle-mobile .arrow{transform:rotate(180deg)}
+    #filtros-body{display:none;margin-top:12px}
+    .sidebar.filtros-open #filtros-body{display:block}
+
+    .tabs{position:static;flex-wrap:wrap;gap:6px;margin:0 -12px 16px;padding:10px 12px 0}
+    .tab-btn{padding:9px 13px;font-size:12px}
   }
 </style>
 </head>
@@ -145,12 +166,17 @@
 <div class="dash-layout">
 
   <!-- Sidebar filtros -->
-  <aside class="sidebar">
-    <h2>Filtros</h2>
-    <div id="filtros-container">
-      <!-- los grupos se generan dinámicamente -->
+  <aside class="sidebar" id="sidebar-filtros">
+    <h2 class="sidebar-title-desktop">Filtros</h2>
+    <button type="button" class="filtros-toggle-mobile" onclick="toggleFiltrosMobile()">
+      <span>Filtros</span><span class="arrow">▾</span>
+    </button>
+    <div id="filtros-body">
+      <div id="filtros-container">
+        <!-- los grupos se generan dinámicamente -->
+      </div>
+      <button class="btn-clear-filtros" onclick="limpiarFiltros()">Limpiar filtros</button>
     </div>
-    <button class="btn-clear-filtros" onclick="limpiarFiltros()">Limpiar filtros</button>
   </aside>
 
   <!-- Contenido principal -->
@@ -261,7 +287,7 @@
           <table id="tabla-campos">
             <thead>
               <tr>
-                <th>Productor</th><th>Campo</th><th>Has. inscriptas</th><th>Fecha siembra</th>
+                <th>Productor</th><th>Campo</th><th>Lote</th><th>Has. inscriptas</th><th>Fecha siembra</th>
                 <th>Rendimiento (qq/ha)</th><th>Producción (Tn)</th>
                 <th>Fecha cosecha</th><th>Condición</th>
               </tr>
@@ -512,6 +538,10 @@ function construirFiltros() {
   }).join('');
 }
 
+function toggleFiltrosMobile() {
+  document.getElementById('sidebar-filtros').classList.toggle('filtros-open');
+}
+
 function cssId(v){ return String(v).replace(/[^a-zA-Z0-9_-]/g,'_'); }
 function escJs(v){ return String(v).replace(/'/g,"\\'"); }
 
@@ -636,7 +666,7 @@ function renderCampos(datos) {
   const ultima = ultimaPorLoteVisitas(datos);
   const tbody = document.getElementById('tabla-campos-body');
   if (!datos.length) {
-    tbody.innerHTML = '<tr><td colspan="8" class="empty-msg">No hay lotes para los filtros aplicados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No hay lotes para los filtros aplicados</td></tr>';
     return;
   }
   const filas = [...datos].sort((a,b)=> a.productor.localeCompare(b.productor) || a.nombre_campo.localeCompare(b.nombre_campo));
@@ -648,6 +678,7 @@ function renderCampos(datos) {
     <tr>
       <td>${l.productor||'—'}</td>
       <td>${l.nombre_campo||'—'}</td>
+      <td>${l.lote||'—'}</td>
       <td>${l.area_ha.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
       <td>${v ? formatFechaCorta(v.fecha_siembra) : '—'}</td>
       <td>${(!isNaN(rinde) && rinde > 0) ? rinde.toLocaleString('es-AR',{maximumFractionDigits:1}) : '—'}</td>
