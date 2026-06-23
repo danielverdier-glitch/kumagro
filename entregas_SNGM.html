@@ -25,6 +25,12 @@
   .map-hint{font-size:12px;color:var(--text-soft);margin-bottom:18px;display:flex;align-items:flex-start;gap:6px}
   .map-hint::before{content:"i";background:var(--gh-green-light);color:var(--gh-green);border-radius:50%;width:18px;height:18px;min-width:18px;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:bold}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:18px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:var(--font);color:var(--text);background:white;outline:none}
+  select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  @media(max-width:700px){.grid-3{grid-template-columns:1fr}}
   .table-wrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead tr.grupo th{background:var(--gh-gold-light);color:var(--gh-green-dark);text-align:center;font-size:11px;border-left:1px solid var(--border)}
@@ -34,6 +40,20 @@
   tbody tr:hover{background:var(--gh-green-light)}
   tbody td{padding:7px 10px;vertical-align:middle;white-space:nowrap}
   tbody td.semana{border-left:1px solid var(--border);text-align:center}
+
+  /* Columnas fijas: Productor, Campo, Tn totales, Fecha de cosecha, Tn embolse, Tn en cosecha */
+  th.fija,td.fija{position:sticky;background:var(--surface)}
+  thead th.fija{background:var(--gh-green-dark);z-index:3}
+  thead tr.grupo th.fija{background:var(--gh-gold-light);z-index:3}
+  tbody td.fija{z-index:1}
+  tbody tr:hover td.fija{background:var(--gh-green-light)}
+  th.fija-0,td.fija-0{left:0;width:140px;min-width:140px}
+  th.fija-1,td.fija-1{left:140px;width:140px;min-width:140px}
+  th.fija-2,td.fija-2{left:280px;width:90px;min-width:90px}
+  th.fija-3,td.fija-3{left:370px;width:130px;min-width:130px}
+  th.fija-4,td.fija-4{left:500px;width:90px;min-width:90px}
+  th.fija-5,td.fija-5{left:590px;width:100px;min-width:100px;box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
+  th.fija-grupo{position:sticky;left:0;width:690px;min-width:690px;z-index:3;box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
   tbody td input.f-num{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
   tbody td input.f-num:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
   tbody td input.f-num:disabled{background:var(--bg);color:var(--text-soft);font-weight:600}
@@ -60,6 +80,30 @@
   <p class="page-sub">Cargá el embolse y la entrega semanal de cada campo de la campaña en curso.</p>
 
   <div id="loading-bar" class="map-hint">Cargando campos de la campaña...</div>
+
+  <div class="card">
+    <div class="card-title">Filtros</div>
+    <div class="grid-3">
+      <div>
+        <label>Región</label>
+        <select id="f-region" onchange="aplicarFiltros()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+      <div>
+        <label>Productor</label>
+        <select id="f-productor" onchange="aplicarFiltros()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label>Variedad</label>
+        <select id="f-variedad" onchange="aplicarFiltros()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="table-wrap">
@@ -181,7 +225,9 @@ async function cargarDatos() {
       area_ha: parseFloat(l.area_ha) || 0,
       productor: l.productor || 'Sin dato',
       nombre_campo: l.nombre_campo || 'Sin dato',
-      campana: l.campana || 'Sin dato'
+      campana: l.campana || 'Sin dato',
+      region: l.region || 'Sin clasificar',
+      variedad: l.variedad || 'Sin dato'
     }));
     allVisitas = Array.isArray(visitas) ? visitas : [];
 
@@ -199,13 +245,40 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
     return;
   }
+  construirFiltros();
+  aplicarFiltros();
+}
+
+// ─── FILTROS ──────────────────────────────────────────────
+function construirFiltros() {
+  const regiones    = [...new Set(allLotes.map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const productores = [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const variedades  = [...new Set(allLotes.map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+  document.getElementById('f-region').innerHTML = '<option value="">Todas</option>' + regiones.map(r=>`<option value="${r}">${r}</option>`).join('');
+  document.getElementById('f-productor').innerHTML = '<option value="">Todos</option>' + productores.map(p=>`<option value="${p}">${p}</option>`).join('');
+  document.getElementById('f-variedad').innerHTML = '<option value="">Todas</option>' + variedades.map(v=>`<option value="${v}">${v}</option>`).join('');
+}
+
+function lotesFiltrados() {
+  const region    = document.getElementById('f-region').value;
+  const productor = document.getElementById('f-productor').value;
+  const variedad  = document.getElementById('f-variedad').value;
+  return allLotes.filter(l =>
+    (!region    || l.region    === region) &&
+    (!productor || l.productor === productor) &&
+    (!variedad  || l.variedad  === variedad)
+  );
+}
+
+function aplicarFiltros() {
   calcularCampos();
   renderTabla();
 }
 
 function calcularCampos() {
   const campanaActual = campanaMasReciente();
-  const lotesCampana = allLotes.filter(l => l.campana === campanaActual);
+  const lotesCampana = lotesFiltrados().filter(l => l.campana === campanaActual);
   semanas = construirSemanas(anioCosechaDeCampana(campanaActual));
 
   const ultima = ultimaPorLoteVisitas(lotesCampana);
@@ -251,7 +324,6 @@ function renderTabla() {
   tbody.innerHTML = campos.map(c => {
     const tnEmbolse = entregasCabecera[c.id_campo] ? parseInt(entregasCabecera[c.id_campo].tn_embolse) || 0 : 0;
     const tnCosecha = Math.max(0, Math.round(c.tnTotales - tnEmbolse));
-    const semanasEditables = semanas.slice(0, -1);
 
     const semCeldas = semanas.map((s, i) => {
       const esUltima = i === semanas.length - 1;
@@ -266,13 +338,13 @@ function renderTabla() {
     return `
       <tr data-id-campo="${c.id_campo}" data-tn-totales="${c.tnTotales}"
           data-productor="${c.productor}" data-campo="${c.nombre_campo}" data-campana="${c.campana}">
-        <td>${c.productor}</td>
-        <td>${c.nombre_campo}</td>
-        <td>${c.tnTotales.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
-        <td>${formatearFechaCosecha(c.fechas)}</td>
-        <td><input type="text" inputmode="numeric" class="f-num f-embolse" value="${tnEmbolse || ''}"
+        <td class="fija fija-0">${c.productor}</td>
+        <td class="fija fija-1">${c.nombre_campo}</td>
+        <td class="fija fija-2">${c.tnTotales.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+        <td class="fija fija-3">${formatearFechaCosecha(c.fechas)}</td>
+        <td class="fija fija-4"><input type="text" inputmode="numeric" class="f-num f-embolse" value="${tnEmbolse || ''}"
           oninput="onInputFila(this)"></td>
-        <td><input type="text" inputmode="numeric" class="f-num f-tn-cosecha" value="${tnCosecha || ''}" disabled></td>
+        <td class="fija fija-5"><input type="text" inputmode="numeric" class="f-num f-tn-cosecha" value="${tnCosecha || ''}" disabled></td>
         ${semCeldas}
         <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
       </tr>`;
@@ -297,7 +369,7 @@ function renderEncabezados() {
   const theadGrupo = document.getElementById('thead-grupo');
   const theadCols  = document.getElementById('thead-cols');
 
-  let html = '<th colspan="6"></th>';
+  let html = '<th class="fija-grupo"></th>';
   let i = 0;
   while (i < semanas.length) {
     const mes = semanas[i].mesLabel;
@@ -308,7 +380,9 @@ function renderEncabezados() {
   html += '<th></th>';
   theadGrupo.innerHTML = html;
 
-  const colsBase = '<th>Productor</th><th>Campo</th><th>Tn totales</th><th>Fecha de cosecha</th><th>Tn embolse</th><th>Tn en cosecha</th>';
+  const colsBase = '<th class="fija fija-0">Productor</th><th class="fija fija-1">Campo</th>'
+    + '<th class="fija fija-2">Tn totales</th><th class="fija fija-3">Fecha de cosecha</th>'
+    + '<th class="fija fija-4">Tn embolse</th><th class="fija fija-5">Tn en cosecha</th>';
   theadCols.innerHTML = colsBase + semanas.map(s => `<th class="semana">${s.label}</th>`).join('') + '<th></th>';
 }
 
