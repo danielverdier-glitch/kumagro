@@ -32,14 +32,15 @@
   select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
   @media(max-width:700px){.grid-3{grid-template-columns:1fr}}
   .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:13px}
+  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
   thead tr.grupo th{background:var(--gh-gold-light);color:var(--gh-green-dark);text-align:center;font-size:11px;border-left:1px solid var(--border)}
   thead tr.cols th{background:var(--gh-green-dark);color:white;padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.03em;white-space:nowrap}
-  thead tr.cols th.semana{text-align:center;border-left:1px solid rgba(255,255,255,.15)}
+  thead tr.cols th.semana{text-align:center;border-left:1px solid rgba(255,255,255,.15);width:80px}
   tbody tr{border-bottom:1px solid var(--border)}
   tbody tr:hover{background:var(--gh-green-light)}
   tbody td{padding:7px 10px;vertical-align:middle;white-space:nowrap}
-  tbody td.semana{border-left:1px solid var(--border);text-align:center}
+  tbody td.semana{border-left:1px solid var(--border);text-align:center;width:80px}
+  thead tr.cols th:last-child,tbody td:last-child{width:90px}
 
   /* Columnas fijas: Productor, Campo, Tn totales, Fecha de cosecha, Tn embolse, Tn en cosecha */
   th.fija,td.fija{position:sticky;background:var(--surface)}
@@ -97,9 +98,9 @@
         </select>
       </div>
       <div>
-        <label>Variedad</label>
-        <select id="f-variedad" onchange="aplicarFiltros()">
-          <option value="">Todas</option>
+        <label>Campo</label>
+        <select id="f-campo" onchange="aplicarFiltros()">
+          <option value="">Todos</option>
         </select>
       </div>
     </div>
@@ -226,8 +227,7 @@ async function cargarDatos() {
       productor: l.productor || 'Sin dato',
       nombre_campo: l.nombre_campo || 'Sin dato',
       campana: l.campana || 'Sin dato',
-      region: l.region || 'Sin clasificar',
-      variedad: l.variedad || 'Sin dato'
+      region: l.region || 'Sin clasificar'
     }));
     allVisitas = Array.isArray(visitas) ? visitas : [];
 
@@ -253,21 +253,21 @@ async function cargarDatos() {
 function construirFiltros() {
   const regiones    = [...new Set(allLotes.map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const productores = [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const variedades  = [...new Set(allLotes.map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const camposU     = [...new Set(allLotes.map(l=>l.nombre_campo).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
 
   document.getElementById('f-region').innerHTML = '<option value="">Todas</option>' + regiones.map(r=>`<option value="${r}">${r}</option>`).join('');
   document.getElementById('f-productor').innerHTML = '<option value="">Todos</option>' + productores.map(p=>`<option value="${p}">${p}</option>`).join('');
-  document.getElementById('f-variedad').innerHTML = '<option value="">Todas</option>' + variedades.map(v=>`<option value="${v}">${v}</option>`).join('');
+  document.getElementById('f-campo').innerHTML = '<option value="">Todos</option>' + camposU.map(c=>`<option value="${c}">${c}</option>`).join('');
 }
 
 function lotesFiltrados() {
   const region    = document.getElementById('f-region').value;
   const productor = document.getElementById('f-productor').value;
-  const variedad  = document.getElementById('f-variedad').value;
+  const campo     = document.getElementById('f-campo').value;
   return allLotes.filter(l =>
-    (!region    || l.region    === region) &&
-    (!productor || l.productor === productor) &&
-    (!variedad  || l.variedad  === variedad)
+    (!region    || l.region       === region) &&
+    (!productor || l.productor    === productor) &&
+    (!campo     || l.nombre_campo === campo)
   );
 }
 
