@@ -385,17 +385,12 @@
         <div class="card">
           <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
             <span>Actualización de datos</span>
-            <div style="display:flex;gap:6px">
-              <select id="semaforo-productor-select" onchange="cambiarSemaforoProductor(this.value)"
-                style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
-                <option value="">Todos</option>
-              </select>
-              <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
-                style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
-                <option value="lotes">Lotes</option>
-                <option value="ha">Hectáreas</option>
-              </select>
-            </div>
+            <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="ha">Hectáreas</option>
+              <option value="lotes">Cantidad de lotes</option>
+              <option value="productores">Cantidad de productores</option>
+            </select>
           </div>
           <div class="semaforo-row" id="seg-semaforo" title="Antigüedad del último dato cargado por lote (visita o carga masiva)">
             <div class="semaforo-housing">
@@ -1065,8 +1060,8 @@ function cambiarUnidadChartCampanas(valor) {
 
 function renderChartSiembras() {
   const datos = datosCacheComparativo;
-  const INICIO_KEY = 915;
-  const FIN_KEY = 1215;
+  const INICIO_KEY = 915;  // 15 de septiembre
+  const FIN_KEY = 1215;    // 15 de febrero del siguiente año
   const porCampana = {};
 
   datos.forEach(l => {
@@ -1084,12 +1079,14 @@ function renderChartSiembras() {
         const mesAjustado = mes < 9 ? mes + 12 : mes;
         const key = mesAjustado * 100 + dia;
 
-        if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
-        porCampana[l.campana][key].ha += l.area_ha;
+        if (key >= INICIO_KEY && key <= FIN_KEY) {
+          if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+          porCampana[l.campana][key].ha += l.area_ha;
 
-        const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
-        if (!isNaN(rinde) && rinde > 0) {
-          porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+          if (!isNaN(rinde) && rinde > 0) {
+            porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          }
         }
       }
     }
@@ -1164,8 +1161,8 @@ function cambiarUnidadChartSiembras(valor) {
 
 function renderChartCosechas() {
   const datos = datosCacheComparativo;
-  const INICIO_KEY = 915;
-  const FIN_KEY = 1215;
+  const INICIO_KEY = 315;   // 15 de marzo
+  const FIN_KEY = 615;      // 15 de junio
   const porCampana = {};
 
   datos.forEach(l => {
@@ -1180,15 +1177,16 @@ function renderChartCosechas() {
       if (!isNaN(fecha)) {
         const mes = fecha.getMonth() + 1;
         const dia = fecha.getDate();
-        const mesAjustado = mes < 9 ? mes + 12 : mes;
-        const key = mesAjustado * 100 + dia;
+        const key = mes * 100 + dia;
 
-        if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
-        porCampana[l.campana][key].ha += l.area_ha;
+        if (key >= INICIO_KEY && key <= FIN_KEY) {
+          if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+          porCampana[l.campana][key].ha += l.area_ha;
 
-        const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
-        if (!isNaN(rinde) && rinde > 0) {
-          porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+          if (!isNaN(rinde) && rinde > 0) {
+            porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          }
         }
       }
     }
@@ -1200,9 +1198,9 @@ function renderChartCosechas() {
   const claves = [...clavesSet].sort((a,b) => a-b);
 
   const keyAFecha = (key) => {
-    const mesReal = key > 1200 ? Math.floor(key/100) - 12 : Math.floor(key/100);
+    const mes = Math.floor(key/100);
     const dia = key % 100;
-    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mesReal-1]}`;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mes-1]}`;
   };
   const labels = claves.map(keyAFecha);
 
@@ -1295,21 +1293,14 @@ function renderKpiVisitas(datos) {
 // Semáforo de antigüedad: toma el último dato cargado por lote (visita o
 // carga masiva, vía ultimaPorLoteVisitas que no filtra por tipo_registro)
 // y clasifica cada lote según los días transcurridos desde esa carga.
-let semaforoUnidad = 'lotes'; // 'lotes' | 'ha'
-let semaforoProductor = ''; // productor seleccionado (vacío = todos)
+let semaforoUnidad = 'ha'; // 'ha' | 'lotes' | 'productores'
 let datosCacheSeguimiento = null;
 let ultimaCacheSeguimiento = null;
-let semaforoDatos = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
+let semaforoDatos = { ha:{verde:0,amarillo:0,rojo:0}, lotes:{verde:0,amarillo:0,rojo:0}, productores:{verde:0,amarillo:0,rojo:0} };
 
 function renderSemaforoActualizacion(datos, ultima) {
   datosCacheSeguimiento = datos;
   ultimaCacheSeguimiento = ultima;
-
-  const selectProductor = document.getElementById('semaforo-productor-select');
-  const productoresUnicos = [...new Set(datos.map(l => l.productor || 'Sin dato'))].sort();
-  const opcionesHTML = '<option value="">Todos</option>' + productoresUnicos.map(p => `<option value="${p}">${p}</option>`).join('');
-  selectProductor.innerHTML = opcionesHTML;
-
   actualizarSemaforo();
 }
 
@@ -1317,13 +1308,10 @@ function actualizarSemaforo() {
   const datos = datosCacheSeguimiento;
   const ultima = ultimaCacheSeguimiento;
   const hoy = new Date();
-  const cont = { lotes:{verde:0,amarillo:0,rojo:0}, ha:{verde:0,amarillo:0,rojo:0} };
+  const cont = { ha:{verde:0,amarillo:0,rojo:0}, lotes:{verde:0,amarillo:0,rojo:0}, productores:{verde:0,amarillo:0,rojo:0} };
+  const productoresPorColor = { verde:new Set(), amarillo:new Set(), rojo:new Set() };
 
-  const datosFiltrados = semaforoProductor
-    ? datos.filter(l => (l.productor || 'Sin dato') === semaforoProductor)
-    : datos;
-
-  datosFiltrados.forEach(l => {
+  datos.forEach(l => {
     const v = ultima[l.id_lote];
     let dias = Infinity;
     if (v && v.fecha_visita) {
@@ -1333,14 +1321,15 @@ function actualizarSemaforo() {
     const balde = dias <= 10 ? 'verde' : dias <= 20 ? 'amarillo' : 'rojo';
     cont.lotes[balde]++;
     cont.ha[balde] += l.area_ha;
+    productoresPorColor[balde].add(l.productor || 'Sin dato');
   });
+
+  cont.productores.verde = productoresPorColor.verde.size;
+  cont.productores.amarillo = productoresPorColor.amarillo.size;
+  cont.productores.rojo = productoresPorColor.rojo.size;
+
   semaforoDatos = cont;
   pintarSemaforo();
-}
-
-function cambiarSemaforoProductor(valor) {
-  semaforoProductor = valor;
-  actualizarSemaforo();
 }
 
 function cambiarSemaforoUnidad(valor) {
