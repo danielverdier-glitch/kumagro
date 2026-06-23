@@ -69,7 +69,6 @@
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
   .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px}
-  .grid-mapa-rank{display:grid;grid-template-columns:2fr 1fr;gap:18px}
 
   .kpi-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center}
   .kpi-value{font-size:38px;font-weight:800;color:var(--gh-green-dark);line-height:1}
@@ -93,7 +92,6 @@
   tbody tr:hover{background:var(--gh-green-light)}
   tbody td{padding:9px 12px;color:var(--text);vertical-align:middle;white-space:nowrap}
 
-  #map-mini{height:460px;border-radius:8px;border:1.5px solid var(--border)}
   #map-lotes{height:560px;border-radius:8px;border:1.5px solid var(--border)}
   .chart-wrap{position:relative}
   #chart-pie-wrap{height:230px}
@@ -111,6 +109,8 @@
   .semaforo-count{font-size:17px;font-weight:700;color:var(--text);min-width:24px}
   .semaforo-label{font-size:11.5px;color:var(--text-soft)}
   #chart-linea-wrap{height:190px}
+  #chart-cosecha-principal-wrap{height:220px}
+  #chart-avance-wrap{height:220px}
   #chart-campanas-wrap{height:380px}
   #seg-chart-condicion-wrap,#seg-chart-fenologico-wrap{height:230px}
   #seg-chart-pronostico-wrap{height:260px}
@@ -134,7 +134,7 @@
   @media(max-width:900px){
     .dash-layout{flex-direction:column}
     .sidebar{width:100%;min-width:0;position:relative;height:auto;padding:14px}
-    .grid-2,.grid-3,.grid-4,.grid-mapa-rank{grid-template-columns:1fr}
+    .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
 
     header{padding:10px 14px;flex-wrap:wrap}
     .main{padding:14px 12px 40px}
@@ -242,15 +242,20 @@
         <div class="chart-wrap" id="chart-linea-wrap"><canvas id="chart-linea"></canvas></div>
       </div>
 
-      <div class="grid-mapa-rank">
+      <div class="grid-2">
         <div class="card">
-          <div class="card-title">Mapa</div>
-          <div id="map-mini"></div>
+          <div class="card-title">Evolución de la cosecha (ha)</div>
+          <div class="chart-wrap" id="chart-cosecha-principal-wrap"><canvas id="chart-cosecha-principal"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Ranking de productores (ha)</div>
-          <div id="rank-productores"></div>
+          <div class="card-title">Avance</div>
+          <div class="chart-wrap" id="chart-avance-wrap"><canvas id="chart-avance"></canvas></div>
         </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ranking de productores (ha)</div>
+        <div id="rank-productores"></div>
       </div>
     </div>
 
@@ -435,9 +440,9 @@ let allVisitas = [];
 let activeTab  = 'principal';
 let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set(), siembra:new Set() };
 let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
-let mapMini=null, mapLotes=null;
-let layersMini=[], layersLotes=[];
-let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null };
+let mapLotes=null;
+let layersLotes=[];
+let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null, cosechaPrincipal:null, avance:null };
 
 const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
 const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
@@ -785,15 +790,6 @@ function ajustarPines(map, itemsArr) {
   });
 }
 
-function renderMapaMini(datos) {
-  if (!mapMini) {
-    mapMini = L.map('map-mini').setView([-34.5,-63],5);
-    addBaseLayers(mapMini);
-    mapMini.on('zoomend', () => ajustarPines(mapMini, layersMini));
-  }
-  dibujarLotesEnMapa(mapMini, layersMini, datos);
-}
-
 function renderMapaLotes(datos) {
   if (!mapLotes) {
     mapLotes = L.map('map-lotes').setView([-34.5,-63],5);
@@ -805,7 +801,6 @@ function renderMapaLotes(datos) {
 
 // ─── TAB PRINCIPAL ────────────────────────────────────────
 function renderPrincipal(datos) {
-  renderMapaMini(datos);
   renderKpi(datos);
   renderPieVariedad(datos);
   renderPieSiembra(datos);
@@ -814,6 +809,8 @@ function renderPrincipal(datos) {
   renderRanking('rank-provincias', datos, rankingGeo);
   renderRanking('rank-productores', datos, 'productor');
   renderLineaSiembras(datos);
+  renderCosechaEvolucionPrincipal(datos);
+  renderAvance(datos);
 }
 
 function renderKpi(datos) {
@@ -1224,7 +1221,9 @@ function renderCosecha(datos, ultima) {
   renderCosechaEvolucion(datos);
 }
 
-function renderCosechaEvolucion(datos) {
+// Calcula la evolución de hectáreas cosechadas acumuladas en el tiempo
+// (compartido entre la solapa Principal y la solapa Seguimiento).
+function calcularEvolucionCosecha(datos) {
   const idsVisibles = new Set(datos.map(l=>l.id_lote));
   const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
 
@@ -1255,8 +1254,11 @@ function renderCosechaEvolucion(datos) {
     return ha;
   });
 
-  const labels = clavesOrdenadas.map(claveAFecha);
+  return { labels: clavesOrdenadas.map(claveAFecha), data };
+}
 
+function renderCosechaEvolucion(datos) {
+  const { labels, data } = calcularEvolucionCosecha(datos);
   if (charts.cosecha) charts.cosecha.destroy();
   charts.cosecha = new Chart(document.getElementById('seg-chart-cosecha'), {
     type:'line',
@@ -1265,6 +1267,80 @@ function renderCosechaEvolucion(datos) {
       responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} },
       scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'ha',font:{size:10}}} }
+    }
+  });
+}
+
+function renderCosechaEvolucionPrincipal(datos) {
+  const { labels, data } = calcularEvolucionCosecha(datos);
+  if (charts.cosechaPrincipal) charts.cosechaPrincipal.destroy();
+  charts.cosechaPrincipal = new Chart(document.getElementById('chart-cosecha-principal'), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Ha cosechadas', data, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:true, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'ha',font:{size:10}}} }
+    }
+  });
+}
+
+// ─── Avance: % siembra y % cosecha acumulados en el tiempo ───
+function renderAvance(datos) {
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
+
+  const INICIO_KEY = 9*100 + 1;        // 1-sep
+  const FIN_KEY    = (5+12)*100 + 31;  // 31-may
+
+  const eventosSiembra = datos
+    .filter(l => l.fecha_siembra_estimada)
+    .map(l => ({ id_lote: l.id_lote, key: ordenCampana(l.fecha_siembra_estimada) }))
+    .filter(e => e.key >= INICIO_KEY && e.key <= FIN_KEY)
+    .sort((a,b) => a.key - b.key);
+
+  const eventosCosecha = allVisitas
+    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada)
+    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_estimada) }))
+    .filter(v => v.fechaISO)
+    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
+    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
+    .sort((a,b) => a.key - b.key);
+
+  const claves = new Set([INICIO_KEY, FIN_KEY]);
+  eventosSiembra.forEach(e => claves.add(e.key));
+  eventosCosecha.forEach(e => claves.add(e.key));
+  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
+
+  const sembrados = new Set(); let cursorS = 0;
+  const cosechados = new Set(); let cursorC = 0;
+  const dataSiembra = [], dataCosecha = [];
+  clavesOrdenadas.forEach(k => {
+    while (cursorS < eventosSiembra.length && eventosSiembra[cursorS].key <= k) { sembrados.add(eventosSiembra[cursorS].id_lote); cursorS++; }
+    while (cursorC < eventosCosecha.length && eventosCosecha[cursorC].key <= k) { cosechados.add(eventosCosecha[cursorC].id_lote); cursorC++; }
+    let haS = 0; sembrados.forEach(id => haS += areaPorLote[id] || 0);
+    let haC = 0; cosechados.forEach(id => haC += areaPorLote[id] || 0);
+    dataSiembra.push(totalHa ? haS/totalHa*100 : 0);
+    dataCosecha.push(totalHa ? haC/totalHa*100 : 0);
+  });
+
+  const labels = clavesOrdenadas.map(claveAFecha);
+
+  if (charts.avance) charts.avance.destroy();
+  charts.avance = new Chart(document.getElementById('chart-avance'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'% Siembra', data:dataSiembra, borderColor:'#3a6b2a', backgroundColor:'#3a6b2a26', fill:false, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' },
+      { label:'% Cosecha', data:dataCosecha, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:false, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(0)}%` } }
+      },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,max:100,ticks:{font:{size:10}},title:{display:true,text:'%',font:{size:10}}} }
     }
   });
 }
