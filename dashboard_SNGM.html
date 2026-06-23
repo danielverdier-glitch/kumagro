@@ -1698,46 +1698,55 @@ function renderFenologico(datos, ultima) {
 }
 
 // ─── Figura procedural de planta de soja según estado fenológico ──
-function svgPlantaSoja(indice) {
-  if (indice < 0) indice = 0;
-  const stemHeight = 55 + indice*11;
-  const leafPairs = Math.min(indice+2, 6);
-  const amarillo = indice >= 7;
-  const colorTallo = amarillo ? '#8a6a2a' : '#3a8f2e';
-  const colorHoja = amarillo ? '#c9a227' : (indice>=1 ? '#3a8f2e' : '#7ab648');
-  const conFlores = indice >= 3 && indice <= 4;
-  const conVainas = indice >= 4;
-  const colorVaina = indice <= 5 ? '#5b8f4e' : (indice <= 6 ? '#9c8a3a' : '#8a6a2a');
+// Una etapa por cada valor de ESTADOS_FENOLOGICOS, con parámetros propios
+// (no fórmulas continuas) para que cada estadio se vea claramente distinto:
+// arranca como plántula chica con pocas hojas (VE), crece y se llena de
+// hojas en la fase vegetativa (V2-V4 a V5-V8), florece solo en el arranque
+// reproductivo (R1-R2), forma y llena vainas desde R3-R4 en adelante, y al
+// madurar (R6 a R7-R8) pierde hojas progresivamente, el tallo y las hojas
+// que quedan se ponen amarillas/marrones, y predominan las vainas.
+const ETAPAS_PLANTA = [
+  { stem:16,  leafPairs:1, leafScale:0.55, leafColor:'#9fd17a', stemColor:'#5a9a3a', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // VE
+  { stem:42,  leafPairs:3, leafScale:0.8,  leafColor:'#7ab648', stemColor:'#4a8a2e', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // V2-V4
+  { stem:75,  leafPairs:5, leafScale:1.0,  leafColor:'#509a35', stemColor:'#3a8f2e', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // V5-V8
+  { stem:100, leafPairs:6, leafScale:1.0,  leafColor:'#3a8f2e', stemColor:'#3a8f2e', flores:5, vainas:0, vainaColor:'#5b8f4e' }, // R1-R2
+  { stem:108, leafPairs:6, leafScale:1.0,  leafColor:'#2f7d27', stemColor:'#2f7d27', flores:2, vainas:3, vainaColor:'#5b8f4e' }, // R3-R4
+  { stem:110, leafPairs:6, leafScale:0.95, leafColor:'#2a6e22', stemColor:'#2a6e22', flores:0, vainas:5, vainaColor:'#6f9c4a' }, // R5
+  { stem:104, leafPairs:3, leafScale:0.85, leafColor:'#a98a2e', stemColor:'#8a6a2a', flores:0, vainas:6, vainaColor:'#9c8a3a' }, // R6
+  { stem:92,  leafPairs:0, leafScale:0,    leafColor:'#c9a227', stemColor:'#7a5a22', flores:0, vainas:7, vainaColor:'#8a6a2a' }  // R7-R8
+];
 
-  const baseY = 185, topY = baseY - stemHeight;
+function svgPlantaSoja(indice) {
+  const e = ETAPAS_PLANTA[Math.min(Math.max(indice,0), ETAPAS_PLANTA.length-1)];
+  const baseY = 185, topY = baseY - e.stem;
+
   let hojas = '';
-  for (let i=0; i<leafPairs; i++) {
-    const y = baseY - 12 - (stemHeight-20) * (i/(leafPairs-1||1));
+  for (let i=0; i<e.leafPairs; i++) {
+    const y = baseY - 12 - (e.stem-15) * (i/Math.max(e.leafPairs-1,1));
     const lado = i%2===0 ? 1 : -1;
+    const s = e.leafScale;
     hojas += `
       <g transform="translate(70,${y})">
-        <ellipse cx="${lado*16}" cy="-2" rx="11" ry="6" fill="${colorHoja}" transform="rotate(${lado*-25})"/>
-        <ellipse cx="${lado*26}" cy="4" rx="9" ry="5" fill="${colorHoja}" transform="rotate(${lado*-10})"/>
-        <ellipse cx="${lado*8}" cy="6" rx="9" ry="5" fill="${colorHoja}" transform="rotate(${lado*-35})"/>
+        <ellipse cx="${lado*16*s}" cy="-2" rx="${11*s}" ry="${6*s}" fill="${e.leafColor}" transform="rotate(${lado*-25})"/>
+        <ellipse cx="${lado*26*s}" cy="4" rx="${9*s}" ry="${5*s}" fill="${e.leafColor}" transform="rotate(${lado*-10})"/>
+        <ellipse cx="${lado*8*s}" cy="6" rx="${9*s}" ry="${5*s}" fill="${e.leafColor}" transform="rotate(${lado*-35})"/>
       </g>`;
   }
+
   let flores = '';
-  if (conFlores) {
-    for (let i=0;i<4;i++) {
-      flores += `<circle cx="${64+i*4}" cy="${topY+6+i*3}" r="2.4" fill="#9c6bd1"/>`;
-    }
+  for (let i=0; i<e.flores; i++) {
+    flores += `<circle cx="${64+i*4}" cy="${topY+6+i*3}" r="2.4" fill="#9c6bd1"/>`;
   }
+
   let vainas = '';
-  if (conVainas) {
-    const nVainas = Math.min(indice-3, 5);
-    for (let i=0;i<nVainas;i++) {
-      const y = baseY - 18 - i*16;
-      const lado = i%2===0?1:-1;
-      vainas += `<ellipse cx="${70+lado*13}" cy="${y}" rx="5" ry="9" fill="${colorVaina}" stroke="#2a4e1e" stroke-width="0.5" transform="rotate(${lado*20} ${70+lado*13} ${y})"/>`;
-    }
+  for (let i=0; i<e.vainas; i++) {
+    const y = baseY - 18 - i*15;
+    const lado = i%2===0?1:-1;
+    vainas += `<ellipse cx="${70+lado*13}" cy="${y}" rx="5" ry="9" fill="${e.vainaColor}" stroke="#2a4e1e" stroke-width="0.5" transform="rotate(${lado*20} ${70+lado*13} ${y})"/>`;
   }
+
   return `<svg width="130" height="190" viewBox="0 0 140 195">
-    <line x1="70" y1="${baseY}" x2="70" y2="${topY}" stroke="${colorTallo}" stroke-width="4" stroke-linecap="round"/>
+    <line x1="70" y1="${baseY}" x2="70" y2="${topY}" stroke="${e.stemColor}" stroke-width="4" stroke-linecap="round"/>
     ${hojas}
     ${vainas}
     ${flores}
