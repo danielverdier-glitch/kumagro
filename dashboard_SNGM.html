@@ -248,7 +248,15 @@
 
       <div class="grid-2">
         <div class="card">
-          <div class="card-title">Evolución de la cosecha (ha)</div>
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Evolución de la cosecha</span>
+            <select id="principal-chart-cosecha-unidad" onchange="cambiarUnidadPrincipalCosecha(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="pct">% avance</option>
+              <option value="ha">Hectáreas</option>
+              <option value="tn">Toneladas</option>
+            </select>
+          </div>
           <div class="chart-wrap" id="chart-cosecha-principal-wrap"><canvas id="chart-cosecha-principal"></canvas></div>
         </div>
         <div class="card">
@@ -1180,7 +1188,7 @@ function renderChartCosechas() {
   const ultima = ultimaPorLoteVisitas(datos);
   datos.forEach(l => {
     const v = ultima[l.id_lote];
-    if (v && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada) {
+    if (v && v.fecha_cosecha_estimada) {
       const fecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
       if (!isNaN(fecha)) {
         const mes = fecha.getMonth() + 1;
@@ -1542,57 +1550,11 @@ function renderCosecha(datos, ultima) {
   renderCosechaEvolucion(datos);
 }
 
-// Calcula la evolución de hectáreas cosechadas acumuladas en el tiempo
-// (compartido entre la solapa Principal y la solapa Seguimiento).
-function calcularEvolucionCosecha(datos) {
-  const idsVisibles = new Set(datos.map(l=>l.id_lote));
-  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
-
-  const INICIO_KEY = (3+12)*100 + 15;  // 15-mar
-  const FIN_KEY    = (4+12)*100 + 15;  // 15-abr
-
-  const eventos = allVisitas
-    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada)
-    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_estimada) }))
-    .filter(v => v.fechaISO)
-    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
-    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
-    .sort((a,b) => a.key - b.key);
-
-  const claves = new Set([INICIO_KEY, FIN_KEY]);
-  eventos.forEach(e => claves.add(e.key));
-  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
-
-  const cosechados = new Set();
-  let cursor = 0;
-  const data = clavesOrdenadas.map(k => {
-    while (cursor < eventos.length && eventos[cursor].key <= k) {
-      cosechados.add(eventos[cursor].id_lote);
-      cursor++;
-    }
-    let ha = 0;
-    cosechados.forEach(idLote => { ha += areaPorLote[idLote] || 0; });
-    return ha;
-  });
-
-  return { labels: clavesOrdenadas.map(claveAFecha), data };
-}
-
-// Evolución de cosecha de la solapa Seguimiento: misma lógica que el chart
-// de cosechas de la solapa Comparativo (rango 15-mar a 15-jun, selector
-// % avance / ha / tn), pero acotada a la campaña actual (datos ya viene
-// filtrado por campaña desde renderSeguimientoDashboard).
-let unidadSegCosecha = 'pct'; // 'pct' | 'ha' | 'tn'
-let datosCacheSegCosecha = null;
-
-function renderCosechaEvolucion(datos) {
-  const campanaActual = campanaMasReciente();
-  datosCacheSegCosecha = datos.filter(l => l.campana === campanaActual);
-  dibujarChartSegCosecha();
-}
-
-function dibujarChartSegCosecha() {
-  const datos = datosCacheSegCosecha;
+// Evolución de cosecha (solapas Principal y Seguimiento): para cada
+// lote toma su última fecha de cosecha registrada (esté confirmada o no
+// vía lote_cosechado) y grafica el avance acumulado entre 15-mar y 15-jun,
+// acotado a la campaña actual, con selector % avance / ha / tn.
+function calcularEvolucionCosechaAcumulada(datos, unidad) {
   const INICIO_KEY = 315;   // 15 de marzo
   const FIN_KEY = 615;      // 15 de junio
   const porFecha = {};
@@ -1600,7 +1562,7 @@ function dibujarChartSegCosecha() {
   const ultima = ultimaPorLoteVisitas(datos);
   datos.forEach(l => {
     const v = ultima[l.id_lote];
-    if (v && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada) {
+    if (v && v.fecha_cosecha_estimada) {
       const fecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
       if (!isNaN(fecha)) {
         const mes = fecha.getMonth() + 1;
@@ -1611,7 +1573,7 @@ function dibujarChartSegCosecha() {
           if (!porFecha[key]) porFecha[key] = { ha:0, tn:0 };
           porFecha[key].ha += l.area_ha;
 
-          const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+          const rinde = parseFloat(v.rinde_estimado_qqha);
           if (!isNaN(rinde) && rinde > 0) {
             porFecha[key].tn += rinde * l.area_ha / 10;
           }
@@ -1637,47 +1599,60 @@ function dibujarChartSegCosecha() {
   const data = claves.map(k => {
     acumulado.ha += (porFecha[k]?.ha || 0);
     acumulado.tn += (porFecha[k]?.tn || 0);
-    if (unidadSegCosecha === 'pct') {
+    if (unidad === 'pct') {
       return totalHa ? (acumulado.ha / totalHa * 100) : 0;
-    } else if (unidadSegCosecha === 'tn') {
+    } else if (unidad === 'tn') {
       return acumulado.tn;
     }
     return acumulado.ha;
   });
 
-  const unidadLabel = unidadSegCosecha === 'pct' ? '% avance' : (unidadSegCosecha === 'tn' ? 'Toneladas' : 'Hectáreas');
-  if (charts.cosecha) charts.cosecha.destroy();
-  charts.cosecha = new Chart(document.getElementById('seg-chart-cosecha'), {
+  return { labels, data };
+}
+
+function dibujarChartCosechaEvolucion(canvasId, chartKey, datos, unidad) {
+  const { labels, data } = calcularEvolucionCosechaAcumulada(datos, unidad);
+  const unidadLabel = unidad === 'pct' ? '% avance' : (unidad === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts[chartKey]) charts[chartKey].destroy();
+  charts[chartKey] = new Chart(document.getElementById(canvasId), {
     type:'line',
     data:{ labels, datasets:[{ label:'Cosecha', data, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:true, tension:0.3, cubicInterpolationMode:'monotone', pointRadius:2 }] },
     options:{
       responsive:true, maintainAspectRatio:false,
       plugins:{
         legend:{display:false},
-        tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadSegCosecha === 'pct' ? '%' : unidadSegCosecha}`}}
+        tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidad === 'pct' ? '%' : unidad}`}}
       },
       scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:unidadLabel,font:{size:10}}} }
     }
   });
 }
 
-function cambiarUnidadSegCosecha(valor) {
-  unidadSegCosecha = valor;
-  dibujarChartSegCosecha();
+let unidadSegCosecha = 'pct'; // 'pct' | 'ha' | 'tn'
+let datosCacheSegCosecha = null;
+
+function renderCosechaEvolucion(datos) {
+  const campanaActual = campanaMasReciente();
+  datosCacheSegCosecha = datos.filter(l => l.campana === campanaActual);
+  dibujarChartCosechaEvolucion('seg-chart-cosecha', 'cosecha', datosCacheSegCosecha, unidadSegCosecha);
 }
 
+function cambiarUnidadSegCosecha(valor) {
+  unidadSegCosecha = valor;
+  dibujarChartCosechaEvolucion('seg-chart-cosecha', 'cosecha', datosCacheSegCosecha, unidadSegCosecha);
+}
+
+let unidadPrincipalCosecha = 'pct'; // 'pct' | 'ha' | 'tn'
+let datosCachePrincipalCosecha = null;
+
 function renderCosechaEvolucionPrincipal(datos) {
-  const { labels, data } = calcularEvolucionCosecha(datos);
-  if (charts.cosechaPrincipal) charts.cosechaPrincipal.destroy();
-  charts.cosechaPrincipal = new Chart(document.getElementById('chart-cosecha-principal'), {
-    type:'line',
-    data:{ labels, datasets:[{ label:'Ha cosechadas', data, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:true, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }] },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} },
-      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'ha',font:{size:10}}} }
-    }
-  });
+  datosCachePrincipalCosecha = datos;
+  dibujarChartCosechaEvolucion('chart-cosecha-principal', 'cosechaPrincipal', datosCachePrincipalCosecha, unidadPrincipalCosecha);
+}
+
+function cambiarUnidadPrincipalCosecha(valor) {
+  unidadPrincipalCosecha = valor;
+  dibujarChartCosechaEvolucion('chart-cosecha-principal', 'cosechaPrincipal', datosCachePrincipalCosecha, unidadPrincipalCosecha);
 }
 
 // ─── Avance: % de has confirmadas vs. pendientes, al día de hoy, sobre el total de has inscriptas ───
