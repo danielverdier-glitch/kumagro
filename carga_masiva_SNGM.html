@@ -105,7 +105,7 @@
             <th data-col="ha_plan">Has plan</th><th data-col="area_ha">Has inscriptas</th><th data-col="variedad">Variedad</th><th data-col="semilla_up">Semilla / UP</th>
             <th data-col="siembra">Siembra</th>
             <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th>
-            <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (qq)</th>
+            <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (tn)</th>
             <th data-col="fecha_cosecha">Fecha cosecha</th><th data-col="cosechado">¿Cosechado?</th><th></th>
           </tr>
         </thead>
@@ -241,7 +241,7 @@ function valorOrden(l, col) {
     case 'rinde': return ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : 0;
     case 'produccion': {
       const r = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : 0;
-      return r * areaHa;
+      return (r * areaHa) / 10;
     }
     case 'sembrado': return ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
     case 'cosechado': return ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
@@ -318,7 +318,7 @@ function filaHTML(l) {
   const fechaCosechaPrevia = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const rindePrevio    = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : '';
   const cosechadoPrevio= ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
-  const produccionPrevia = (rindePrevio !== '' && !isNaN(rindePrevio)) ? (rindePrevio * areaHa) : 0;
+  const produccionPrevia = (rindePrevio !== '' && !isNaN(rindePrevio)) ? (rindePrevio * areaHa / 10) : 0;
 
   return `
   <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-lote="${escAttr(l.lote)}" data-area-ha="${areaHa}">
@@ -344,7 +344,7 @@ function filaHTML(l) {
     <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
     <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
     <td><input type="number" step="0.1" min="0" class="f-rinde" value="${rindePrevio===''?'':rindePrevio}" oninput="recalcularProduccion(this)" placeholder="qq/ha"></td>
-    <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:0})}</td>
+    <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
     <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
     <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
@@ -366,7 +366,7 @@ function recalcularProduccion(input) {
   const tr = input.closest('tr');
   const areaHa = parseFloat(tr.dataset.areaHa) || 0;
   const rinde = parseFloat(input.value) || 0;
-  tr.querySelector('.col-produccion').textContent = (rinde*areaHa).toLocaleString('es-AR',{maximumFractionDigits:0});
+  tr.querySelector('.col-produccion').textContent = (rinde*areaHa/10).toLocaleString('es-AR',{maximumFractionDigits:1});
 }
 
 // ─── GUARDAR FILA ─────────────────────────────────────────
