@@ -643,10 +643,25 @@ function aplicarUltimaFechaSiembra() {
 }
 
 // ─── FILTROS ──────────────────────────────────────────────
+// Cada filtro acota las opciones de los demás: las opciones de un filtro
+// se calculan respetando las selecciones de TODOS los otros filtros
+// (pero ignorando las propias), de forma que elegir un valor en uno
+// reduce las opciones disponibles en el resto.
 function construirFiltros() {
   const cont = document.getElementById('filtros-container');
+  const grupoAbierto = cont.querySelector('.filter-group.open');
+  const keyAbierto = grupoAbierto ? grupoAbierto.dataset.key : null;
+  const busquedas = {};
+  FILTROS_DEF.forEach(f => {
+    const input = document.querySelector(`#filtros-container .filter-group[data-key="${f.key}"] .filter-search`);
+    busquedas[f.key] = input ? input.value : '';
+  });
+
   cont.innerHTML = FILTROS_DEF.map(f => {
-    const valores = [...new Set(allLotes.map(l=>l[f.key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    const lotesAcotados = allLotes.filter(l =>
+      FILTROS_DEF.every(otro => otro.key === f.key || filtros[otro.key].size === 0 || filtros[otro.key].has(l[otro.key]))
+    );
+    const valores = [...new Set(lotesAcotados.map(l=>l[f.key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     return `
       <div class="filter-group" data-key="${f.key}">
         <button type="button" class="filter-dropdown-btn" onclick="toggleDropdown(this)">
@@ -655,18 +670,29 @@ function construirFiltros() {
           <span class="arrow">▾</span>
         </button>
         <div class="filter-dropdown-panel">
-          <input type="text" class="filter-search" placeholder="Buscar..." oninput="filtrarListaFiltro('${f.key}', this.value)">
+          <input type="text" class="filter-search" placeholder="Buscar..." value="${escAttrLocal(busquedas[f.key])}" oninput="filtrarListaFiltro('${f.key}', this.value)">
           <div class="filter-list" id="filter-list-${f.key}">
             ${valores.map(v => `
               <div class="filter-item">
-                <input type="checkbox" id="filtro-${f.key}-${cssId(v)}" onchange="toggleFiltro('${f.key}','${escJs(v)}',this.checked)">
+                <input type="checkbox" id="filtro-${f.key}-${cssId(v)}" ${filtros[f.key].has(v)?'checked':''} onchange="toggleFiltro('${f.key}','${escJs(v)}',this.checked)">
                 <label for="filtro-${f.key}-${cssId(v)}">${v}</label>
               </div>`).join('')}
           </div>
         </div>
       </div>`;
   }).join('');
+
+  FILTROS_DEF.forEach(f => actualizarBadge(f.key));
+  if (keyAbierto) {
+    const grupo = cont.querySelector(`.filter-group[data-key="${keyAbierto}"]`);
+    if (grupo) {
+      grupo.classList.add('open');
+      if (busquedas[keyAbierto]) filtrarListaFiltro(keyAbierto, busquedas[keyAbierto]);
+    }
+  }
 }
+
+function escAttrLocal(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
 
 function toggleFiltrosMobile() {
   document.getElementById('sidebar-filtros').classList.toggle('filtros-open');
@@ -697,15 +723,13 @@ function actualizarBadge(key) {
 
 function toggleFiltro(key, valor, checked) {
   if (checked) filtros[key].add(valor); else filtros[key].delete(valor);
-  actualizarBadge(key);
+  construirFiltros();
   renderTabActiva();
 }
 
 function limpiarFiltros() {
-  FILTROS_DEF.forEach(f => { filtros[f.key].clear(); actualizarBadge(f.key); });
-  document.querySelectorAll('#filtros-container input[type=checkbox]').forEach(cb=>cb.checked=false);
-  document.querySelectorAll('.filter-search').forEach(i=>i.value='');
-  document.querySelectorAll('.filter-item').forEach(i=>i.style.display='flex');
+  FILTROS_DEF.forEach(f => { filtros[f.key].clear(); });
+  construirFiltros();
   document.querySelectorAll('.filter-group.open').forEach(g=>g.classList.remove('open'));
   renderTabActiva();
 }

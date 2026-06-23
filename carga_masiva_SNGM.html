@@ -46,6 +46,8 @@
   .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   .btn-ok{background:var(--gh-green-dark)}
+  .btn-secundario{background:transparent;color:var(--gh-green-dark);border:1.5px solid var(--border)}
+  .btn-secundario:hover{background:var(--gh-green-light)}
   .map-hint{font-size:12px;color:var(--text-soft);margin-bottom:14px}
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
@@ -89,6 +91,7 @@
         </select>
       </div>
     </div>
+    <button type="button" class="btn btn-secundario" id="btn-limpiar-filtros" onclick="limpiarFiltros()" style="margin-top:14px">Limpiar filtros</button>
   </div>
 
   <div class="card">
@@ -156,7 +159,6 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
   }
   construirUltimaPorLote();
-  construirFiltros();
   renderTabla();
 }
 
@@ -168,17 +170,34 @@ function construirUltimaPorLote() {
   });
 }
 
+// Cada filtro acota las opciones de los otros dos: las opciones de
+// "Región" se calculan ignorando el propio filtro de región (pero
+// respetando productor/variedad elegidos), y así con cada uno.
 function construirFiltros() {
-  const regiones   = [...new Set(allLotes.map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const productores= [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const variedades = [...new Set(allLotes.map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const region    = document.getElementById('f-region').value;
+  const productor = document.getElementById('f-productor').value;
+  const variedad  = document.getElementById('f-variedad').value;
 
-  const selRegion = document.getElementById('f-region');
-  selRegion.innerHTML = '<option value="">Todas</option>' + regiones.map(r=>`<option value="${escAttr(r)}">${r}</option>`).join('');
-  const selProductor = document.getElementById('f-productor');
-  selProductor.innerHTML = '<option value="">Todos</option>' + productores.map(p=>`<option value="${escAttr(p)}">${p}</option>`).join('');
-  const selVariedad = document.getElementById('f-variedad');
-  selVariedad.innerHTML = '<option value="">Todas</option>' + variedades.map(v=>`<option value="${escAttr(v)}">${v}</option>`).join('');
+  const filtrar = (omitir) => allLotes.filter(l =>
+    (omitir === 'region'    || !region    || l.region    === region) &&
+    (omitir === 'productor' || !productor || l.productor === productor) &&
+    (omitir === 'variedad'  || !variedad  || l.variedad  === variedad)
+  );
+
+  const regiones    = [...new Set(filtrar('region').map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const productores = [...new Set(filtrar('productor').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const variedades  = [...new Set(filtrar('variedad').map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+  rellenarSelect('f-region', regiones, 'Todas', region);
+  rellenarSelect('f-productor', productores, 'Todos', productor);
+  rellenarSelect('f-variedad', variedades, 'Todas', variedad);
+}
+
+function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
+  const sel = document.getElementById(id);
+  const valorValido = valorActual && valores.includes(valorActual) ? valorActual : '';
+  sel.innerHTML = `<option value="">${etiquetaTodos}</option>` + valores.map(v=>`<option value="${escAttr(v)}">${v}</option>`).join('');
+  sel.value = valorValido;
 }
 
 function lotesFiltrados() {
@@ -190,6 +209,13 @@ function lotesFiltrados() {
     (!productor || l.productor === productor) &&
     (!variedad  || l.variedad  === variedad)
   );
+}
+
+function limpiarFiltros() {
+  document.getElementById('f-region').value = '';
+  document.getElementById('f-productor').value = '';
+  document.getElementById('f-variedad').value = '';
+  renderTabla();
 }
 
 // ─── ORDEN ────────────────────────────────────────────────
@@ -326,6 +352,7 @@ function filaHTML(l) {
 }
 
 function renderTabla() {
+  construirFiltros();
   const tbody = document.getElementById('tabla-body');
   const lotes = lotesOrdenados(lotesFiltrados());
   if (!lotes.length) {

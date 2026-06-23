@@ -45,7 +45,7 @@
   /* Columnas fijas: Productor, Campo, Tn totales, Fecha de cosecha, Tn embolse, Tn en cosecha */
   th.fija,td.fija{position:sticky;background:var(--surface)}
   thead th.fija{background:var(--gh-green-dark);z-index:3}
-  thead tr.grupo th.fija{background:var(--gh-gold-light);z-index:3}
+  thead tr.grupo th.fija{background:var(--gh-gold-light);border-bottom:1px solid var(--border);z-index:3}
   tbody td.fija{z-index:1}
   tbody tr:hover td.fija{background:var(--gh-green-light)}
   th.fija-0,td.fija-0{left:0;width:140px;min-width:140px}
@@ -54,7 +54,6 @@
   th.fija-3,td.fija-3{left:370px;width:130px;min-width:130px}
   th.fija-4,td.fija-4{left:500px;width:90px;min-width:90px}
   th.fija-5,td.fija-5{left:590px;width:100px;min-width:100px;box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
-  th.fija-grupo{position:sticky;left:0;width:690px;min-width:690px;z-index:3;background:var(--gh-gold-light);border-bottom:1px solid var(--border);box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
   tbody td input.f-num{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
   tbody td input.f-num:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
   tbody td input.f-num:disabled{background:var(--bg);color:var(--text-soft);font-weight:600}
@@ -62,6 +61,8 @@
   .btn{padding:7px 16px;border-radius:7px;font-size:12.5px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font)}
   .btn:active{transform:scale(.97)}
   .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn-secundario{background:transparent;color:var(--gh-green-dark);border:1.5px solid var(--border)}
+  .btn-secundario:hover{background:var(--gh-green-light)}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
@@ -104,6 +105,7 @@
         </select>
       </div>
     </div>
+    <button type="button" class="btn btn-secundario" id="btn-limpiar-filtros" onclick="limpiarFiltros()" style="margin-top:14px">Limpiar filtros</button>
   </div>
 
   <div class="card">
@@ -297,6 +299,13 @@ function aplicarFiltros() {
   renderTabla();
 }
 
+function limpiarFiltros() {
+  document.getElementById('f-region').value = '';
+  document.getElementById('f-productor').value = '';
+  document.getElementById('f-campo').value = '';
+  aplicarFiltros();
+}
+
 function calcularCampos() {
   const campanaActual = campanaMasReciente();
   const lotesCampana = lotesFiltrados().filter(l => l.campana === campanaActual);
@@ -400,7 +409,8 @@ function renderEncabezados() {
   const theadGrupo = document.getElementById('thead-grupo');
   const theadCols  = document.getElementById('thead-cols');
 
-  let html = '<th class="fija-grupo"></th>';
+  let html = '<th class="fija fija-0"></th><th class="fija fija-1"></th><th class="fija fija-2"></th>'
+    + '<th class="fija fija-3"></th><th class="fija fija-4"></th><th class="fija fija-5"></th>';
   let i = 0;
   while (i < semanas.length) {
     const mes = semanas[i].mesLabel;
