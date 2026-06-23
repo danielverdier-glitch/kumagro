@@ -812,7 +812,10 @@ function renderTabActiva() {
   if (activeTab === 'logistica')      renderLogistica(datos);
   if (activeTab === 'visitas')        renderSeguimiento(datos);
   if (activeTab === 'campos')         renderCampos(datos);
-  if (activeTab === 'seguimiento')    renderSeguimientoDashboard(datos);
+  if (activeTab === 'seguimiento') {
+    const ultimaCampana = campanaMasReciente();
+    renderSeguimientoDashboard(datos.filter(l => l.campana === ultimaCampana));
+  }
 }
 
 function esTrue(v) { return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si'; }
