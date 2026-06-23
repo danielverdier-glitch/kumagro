@@ -3,6 +3,13 @@ const KMZ_FOLDER   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
 const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive para fotos de visitas
 
 function doPost(e) {
+  // Varios usuarios pueden guardar filas casi al mismo tiempo (ej. carga
+  // masiva, varios clicks rápidos en "Guardar"). Sin lock, dos ejecuciones
+  // de doPost pueden leer la misma "última fila" antes de escribir y una
+  // pisa o pierde la escritura de la otra, dejando guardados que parecen
+  // exitosos en la página pero que nunca llegan a la planilla.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
   try {
     const payload = JSON.parse(e.postData.contents);
 
@@ -115,6 +122,8 @@ function doPost(e) {
     return ContentService
       .createTextOutput(JSON.stringify({status:'error',message:err.toString()}))
       .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
   }
 }
 
