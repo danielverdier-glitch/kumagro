@@ -1310,37 +1310,38 @@ function renderCosechaEvolucionPrincipal(datos) {
   });
 }
 
-// ─── Avance: % de fechas confirmadas vs. pendientes, al día de hoy ───
+// ─── Avance: % de has confirmadas vs. pendientes, al día de hoy, sobre el total de has inscriptas ───
 function renderAvance(datos) {
   const hoy = aFechaISO(new Date());
   const ultima = ultimaPorLoteVisitas(datos);
+  const totalHa = datos.reduce((s,l) => s + l.area_ha, 0);
 
-  let universoS = 0, confS = 0;
+  let haConfS = 0, haPendS = 0;
   datos.forEach(l => {
     const fechaEstS = l.fecha_siembra_estimada;
     if (!fechaEstS || fechaEstS > hoy) return;
-    universoS++;
     const v = ultima[l.id_lote];
-    if (v && esTrue(v.lote_sembrado)) confS++;
+    if (v && esTrue(v.lote_sembrado)) haConfS += l.area_ha;
+    else haPendS += l.area_ha;
   });
-  const pctConfS = universoS ? confS/universoS*100 : 0;
-  const pctPendS = universoS ? (universoS-confS)/universoS*100 : 0;
+  const pctConfS = totalHa ? haConfS/totalHa*100 : 0;
+  const pctPendS = totalHa ? haPendS/totalHa*100 : 0;
 
-  let universoC = 0, confC = 0;
+  let haConfC = 0, haPendC = 0;
   datos.forEach(l => {
     const v = ultima[l.id_lote];
     const fechaEstC = v ? aFechaISO(v.fecha_cosecha_estimada) : '';
     if (!fechaEstC || fechaEstC > hoy) return;
-    universoC++;
-    if (esTrue(v.lote_cosechado)) confC++;
+    if (esTrue(v.lote_cosechado)) haConfC += l.area_ha;
+    else haPendC += l.area_ha;
   });
-  const pctConfC = universoC ? confC/universoC*100 : 0;
-  const pctPendC = universoC ? (universoC-confC)/universoC*100 : 0;
+  const pctConfC = totalHa ? haConfC/totalHa*100 : 0;
+  const pctPendC = totalHa ? haPendC/totalHa*100 : 0;
 
   document.getElementById('avance-siembra-pct').textContent = pctConfS.toFixed(0)+'%';
-  document.getElementById('avance-siembra-pend').textContent = universoS ? pctPendS.toFixed(0)+'% sin confirmar' : 'Sin datos';
+  document.getElementById('avance-siembra-pend').textContent = pctPendS.toFixed(0)+'% sin confirmar';
   document.getElementById('avance-cosecha-pct').textContent = pctConfC.toFixed(0)+'%';
-  document.getElementById('avance-cosecha-pend').textContent = universoC ? pctPendC.toFixed(0)+'% sin confirmar' : 'Sin datos';
+  document.getElementById('avance-cosecha-pend').textContent = pctPendC.toFixed(0)+'% sin confirmar';
 }
 
 cargarDatos();
