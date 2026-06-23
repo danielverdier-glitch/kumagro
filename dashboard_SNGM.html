@@ -66,6 +66,10 @@
 
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px}
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .avance-indicador{text-align:center}
+  .avance-label{font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:6px}
+  .avance-pct-grande{font-size:36px;font-weight:800;color:var(--gh-green-dark)}
+  .avance-pct-chica{font-size:11.5px;color:var(--text-soft);margin-top:6px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
   .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
   .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px}
@@ -248,8 +252,19 @@
           <div class="chart-wrap" id="chart-cosecha-principal-wrap"><canvas id="chart-cosecha-principal"></canvas></div>
         </div>
         <div class="card">
-          <div class="card-title">Avance</div>
-          <div class="chart-wrap" id="chart-avance-wrap"><canvas id="chart-avance"></canvas></div>
+          <div class="card-title">Avance (al día de hoy)</div>
+          <div class="grid-2" style="gap:14px">
+            <div class="avance-indicador">
+              <div class="avance-label">Siembra</div>
+              <div class="avance-pct-grande" id="avance-siembra-pct">—</div>
+              <div class="avance-pct-chica" id="avance-siembra-pend">—</div>
+            </div>
+            <div class="avance-indicador">
+              <div class="avance-label">Cosecha</div>
+              <div class="avance-pct-grande" id="avance-cosecha-pct">—</div>
+              <div class="avance-pct-chica" id="avance-cosecha-pend">—</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -625,6 +640,13 @@ function lotesFiltrados() {
   );
 }
 
+// La solapa Principal solo muestra la última campaña cargada, sin importar
+// qué campañas queden seleccionadas en los filtros.
+function campanaMasReciente() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanas[campanas.length-1];
+}
+
 // ─── TABS ─────────────────────────────────────────────────
 function switchDashTab(tab) {
   activeTab = tab;
@@ -638,7 +660,10 @@ function switchDashTab(tab) {
 
 function renderTabActiva() {
   const datos = lotesFiltrados();
-  if (activeTab === 'principal')      renderPrincipal(datos);
+  if (activeTab === 'principal') {
+    const ultimaCampana = campanaMasReciente();
+    renderPrincipal(datos.filter(l => l.campana === ultimaCampana));
+  }
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
   if (activeTab === 'visitas')        renderSeguimiento(datos);
@@ -1285,64 +1310,37 @@ function renderCosechaEvolucionPrincipal(datos) {
   });
 }
 
-// ─── Avance: % siembra y % cosecha acumulados en el tiempo ───
+// ─── Avance: % de fechas confirmadas vs. pendientes, al día de hoy ───
 function renderAvance(datos) {
-  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
-  const idsVisibles = new Set(datos.map(l=>l.id_lote));
-  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
+  const hoy = aFechaISO(new Date());
+  const ultima = ultimaPorLoteVisitas(datos);
 
-  const INICIO_KEY = 9*100 + 1;        // 1-sep
-  const FIN_KEY    = (5+12)*100 + 31;  // 31-may
-
-  const eventosSiembra = datos
-    .filter(l => l.fecha_siembra_estimada)
-    .map(l => ({ id_lote: l.id_lote, key: ordenCampana(l.fecha_siembra_estimada) }))
-    .filter(e => e.key >= INICIO_KEY && e.key <= FIN_KEY)
-    .sort((a,b) => a.key - b.key);
-
-  const eventosCosecha = allVisitas
-    .filter(v => idsVisibles.has(v.id_lote) && esTrue(v.lote_cosechado) && v.fecha_cosecha_estimada)
-    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_cosecha_estimada) }))
-    .filter(v => v.fechaISO)
-    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
-    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
-    .sort((a,b) => a.key - b.key);
-
-  const claves = new Set([INICIO_KEY, FIN_KEY]);
-  eventosSiembra.forEach(e => claves.add(e.key));
-  eventosCosecha.forEach(e => claves.add(e.key));
-  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
-
-  const sembrados = new Set(); let cursorS = 0;
-  const cosechados = new Set(); let cursorC = 0;
-  const dataSiembra = [], dataCosecha = [];
-  clavesOrdenadas.forEach(k => {
-    while (cursorS < eventosSiembra.length && eventosSiembra[cursorS].key <= k) { sembrados.add(eventosSiembra[cursorS].id_lote); cursorS++; }
-    while (cursorC < eventosCosecha.length && eventosCosecha[cursorC].key <= k) { cosechados.add(eventosCosecha[cursorC].id_lote); cursorC++; }
-    let haS = 0; sembrados.forEach(id => haS += areaPorLote[id] || 0);
-    let haC = 0; cosechados.forEach(id => haC += areaPorLote[id] || 0);
-    dataSiembra.push(totalHa ? haS/totalHa*100 : 0);
-    dataCosecha.push(totalHa ? haC/totalHa*100 : 0);
+  let universoS = 0, confS = 0;
+  datos.forEach(l => {
+    const fechaEstS = l.fecha_siembra_estimada;
+    if (!fechaEstS || fechaEstS > hoy) return;
+    universoS++;
+    const v = ultima[l.id_lote];
+    if (v && esTrue(v.lote_sembrado)) confS++;
   });
+  const pctConfS = universoS ? confS/universoS*100 : 0;
+  const pctPendS = universoS ? (universoS-confS)/universoS*100 : 0;
 
-  const labels = clavesOrdenadas.map(claveAFecha);
-
-  if (charts.avance) charts.avance.destroy();
-  charts.avance = new Chart(document.getElementById('chart-avance'), {
-    type:'line',
-    data:{ labels, datasets:[
-      { label:'% Siembra', data:dataSiembra, borderColor:'#3a6b2a', backgroundColor:'#3a6b2a26', fill:false, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' },
-      { label:'% Cosecha', data:dataCosecha, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:false, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{ display:true, position:'top', labels:{ boxWidth:12, font:{size:10} } },
-        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toFixed(0)}%` } }
-      },
-      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,max:100,ticks:{font:{size:10}},title:{display:true,text:'%',font:{size:10}}} }
-    }
+  let universoC = 0, confC = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const fechaEstC = v ? aFechaISO(v.fecha_cosecha_estimada) : '';
+    if (!fechaEstC || fechaEstC > hoy) return;
+    universoC++;
+    if (esTrue(v.lote_cosechado)) confC++;
   });
+  const pctConfC = universoC ? confC/universoC*100 : 0;
+  const pctPendC = universoC ? (universoC-confC)/universoC*100 : 0;
+
+  document.getElementById('avance-siembra-pct').textContent = pctConfS.toFixed(0)+'%';
+  document.getElementById('avance-siembra-pend').textContent = universoS ? pctPendS.toFixed(0)+'% sin confirmar' : 'Sin datos';
+  document.getElementById('avance-cosecha-pct').textContent = pctConfC.toFixed(0)+'%';
+  document.getElementById('avance-cosecha-pend').textContent = universoC ? pctPendC.toFixed(0)+'% sin confirmar' : 'Sin datos';
 }
 
 cargarDatos();
