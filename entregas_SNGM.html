@@ -31,9 +31,9 @@
   select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:var(--font);color:var(--text);background:white;outline:none}
   select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
   @media(max-width:700px){.grid-3{grid-template-columns:1fr}}
-  .table-wrap{overflow-x:auto}
-  table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-  thead tr.grupo th{background:var(--gh-gold-light);color:var(--gh-green-dark);text-align:center;font-size:11px;border-left:1px solid var(--border)}
+  .table-wrap{overflow-x:auto;overflow-y:hidden;border-radius:var(--radius);isolation:isolate}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px;table-layout:fixed}
+  thead tr.grupo th{background:var(--gh-gold-light);color:var(--gh-green-dark);text-align:center;font-size:11px;padding:6px 4px;border-left:1px solid var(--border);border-bottom:1px solid var(--border)}
   thead tr.cols th{background:var(--gh-green-dark);color:white;padding:8px 10px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.03em;white-space:nowrap}
   thead tr.cols th.semana{text-align:center;border-left:1px solid rgba(255,255,255,.15);width:80px}
   tbody tr{border-bottom:1px solid var(--border)}
@@ -54,7 +54,7 @@
   th.fija-3,td.fija-3{left:370px;width:130px;min-width:130px}
   th.fija-4,td.fija-4{left:500px;width:90px;min-width:90px}
   th.fija-5,td.fija-5{left:590px;width:100px;min-width:100px;box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
-  th.fija-grupo{position:sticky;left:0;width:690px;min-width:690px;z-index:3;box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
+  th.fija-grupo{position:sticky;left:0;width:690px;min-width:690px;z-index:3;background:var(--gh-gold-light);border-bottom:1px solid var(--border);box-shadow:3px 0 4px -2px rgba(0,0,0,.15)}
   tbody td input.f-num{width:78px;padding:5px 6px;border:1.5px solid var(--border);border-radius:6px;font-size:12.5px;font-family:var(--font);text-align:right;outline:none}
   tbody td input.f-num:focus{border-color:var(--gh-green);box-shadow:0 0 0 2px rgba(58,107,42,.12)}
   tbody td input.f-num:disabled{background:var(--bg);color:var(--text-soft);font-weight:600}
@@ -246,19 +246,38 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
     return;
   }
-  construirFiltros();
   aplicarFiltros();
 }
 
 // ─── FILTROS ──────────────────────────────────────────────
+// Cada filtro acota las opciones de los otros dos: las opciones de
+// "Región" se calculan ignorando el propio filtro de región (pero
+// respetando productor/campo elegidos), y así con cada uno.
 function construirFiltros() {
-  const regiones    = [...new Set(allLotes.map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const productores = [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-  const camposU     = [...new Set(allLotes.map(l=>l.nombre_campo).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const region    = document.getElementById('f-region').value;
+  const productor = document.getElementById('f-productor').value;
+  const campo     = document.getElementById('f-campo').value;
 
-  document.getElementById('f-region').innerHTML = '<option value="">Todas</option>' + regiones.map(r=>`<option value="${r}">${r}</option>`).join('');
-  document.getElementById('f-productor').innerHTML = '<option value="">Todos</option>' + productores.map(p=>`<option value="${p}">${p}</option>`).join('');
-  document.getElementById('f-campo').innerHTML = '<option value="">Todos</option>' + camposU.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const filtrar = (omitir) => allLotes.filter(l =>
+    (omitir === 'region'    || !region    || l.region       === region) &&
+    (omitir === 'productor' || !productor || l.productor    === productor) &&
+    (omitir === 'campo'     || !campo     || l.nombre_campo === campo)
+  );
+
+  const regiones    = [...new Set(filtrar('region').map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const productores = [...new Set(filtrar('productor').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const camposU     = [...new Set(filtrar('campo').map(l=>l.nombre_campo).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+
+  rellenarSelect('f-region', regiones, 'Todas', region);
+  rellenarSelect('f-productor', productores, 'Todos', productor);
+  rellenarSelect('f-campo', camposU, 'Todos', campo);
+}
+
+function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
+  const sel = document.getElementById(id);
+  const valorValido = valorActual && valores.includes(valorActual) ? valorActual : '';
+  sel.innerHTML = `<option value="">${etiquetaTodos}</option>` + valores.map(v=>`<option value="${v}">${v}</option>`).join('');
+  sel.value = valorValido;
 }
 
 function lotesFiltrados() {
@@ -273,6 +292,7 @@ function lotesFiltrados() {
 }
 
 function aplicarFiltros() {
+  construirFiltros();
   calcularCampos();
   renderTabla();
 }
