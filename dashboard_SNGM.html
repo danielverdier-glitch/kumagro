@@ -214,6 +214,7 @@
       <button class="tab-btn" onclick="switchDashTab('seguimiento')"><span class="tab-label-full">Seguimiento</span><span class="tab-label-mobile">Seguimiento</span></button>
       <button class="tab-btn" onclick="switchDashTab('mapa')"><span class="tab-label-full">Mapa de lotes</span><span class="tab-label-mobile">Mapa</span></button>
       <button class="tab-btn" onclick="switchDashTab('comparativo')"><span class="tab-label-full">Comparativo entre campañas</span><span class="tab-label-mobile">Comparativo</span></button>
+      <button class="tab-btn" onclick="switchDashTab('logistica')"><span class="tab-label-full">Logística</span><span class="tab-label-mobile">Logística</span></button>
       <button class="tab-btn" onclick="switchDashTab('visitas')"><span class="tab-label-full">Visitas</span><span class="tab-label-mobile">Visitas</span></button>
       <button class="tab-btn" onclick="switchDashTab('campos')"><span class="tab-label-full">Campos</span><span class="tab-label-mobile">Campos</span></button>
     </div>
@@ -349,6 +350,26 @@
           </select>
         </div>
         <div class="chart-wrap" id="chart-cosechas-wrap"><canvas id="chart-cosechas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB LOGÍSTICA -->
+    <div class="tab-panel" id="tab-logistica">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Entregas proyectadas (marzo a octubre)</span>
+          <select id="chart-logistica-entregas-unidad" onchange="cambiarUnidadChartLogistica(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="tn" selected>Toneladas</option>
+            <option value="pct">% avance</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-logistica-entregas-wrap"><canvas id="chart-logistica-entregas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Cupo de camiones por semana (30 tn c/u)</div>
+        <div class="chart-wrap" id="chart-logistica-cupo-wrap"><canvas id="chart-logistica-cupo"></canvas></div>
       </div>
     </div>
 
@@ -534,12 +555,15 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybJDEJnle43k2B
 // ─── ESTADO ───────────────────────────────────────────────
 let allLotes   = [];
 let allVisitas = [];
+let entregasPorCampo = {}; // id_campo -> { tn_embolse, semanas: {fechaInicioISO: tn} }, con el último valor cargado
 let activeTab  = 'principal';
 let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set(), siembra:new Set() };
 let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
 let mapLotes=null;
 let layersLotes=[];
-let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null, cosechaPrincipal:null, avance:null };
+let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null, cosechaPrincipal:null, avance:null, logisticaEntregas:null, logisticaCupo:null };
+let datosCacheLogistica = null;
+let unidadChartLogistica = 'tn'; // 'pct' | 'tn'
 
 const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
 const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
@@ -569,14 +593,27 @@ const FILTROS_DEF = [
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
   try {
-    const [resLotes, resVisitas] = await Promise.all([
+    const [resLotes, resVisitas, resEntregas] = await Promise.all([
       fetch(APPS_SCRIPT_URL + '?action=getLotes'),
-      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
+      fetch(APPS_SCRIPT_URL + '?action=getEntregas')
     ]);
-    const data    = await resLotes.json();
-    const visitas = await resVisitas.json();
+    const data     = await resLotes.json();
+    const visitas  = await resVisitas.json();
+    const entregas = await resEntregas.json();
     allLotes   = (Array.isArray(data) ? data : []).map(normalizarLote);
     allVisitas = Array.isArray(visitas) ? visitas : [];
+
+    const COLS_FIJAS_ENTREGA = ['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion'];
+    entregasPorCampo = {};
+    (Array.isArray(entregas) ? entregas : []).forEach(r => {
+      entregasPorCampo[r.id_campo] = { tn_embolse: parseFloat(r.tn_embolse)||0, semanas: {} };
+      Object.keys(r).forEach(k => {
+        if (!COLS_FIJAS_ENTREGA.includes(k) && r[k] !== '' && r[k] != null) {
+          entregasPorCampo[r.id_campo].semanas[k] = parseFloat(r[k]) || 0;
+        }
+      });
+    });
     aplicarUltimaSiembra();
     aplicarUltimaFechaSiembra();
     construirColoresCampana();
@@ -758,7 +795,7 @@ function switchDashTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  const idx = {principal:0,seguimiento:1,mapa:2,comparativo:3,visitas:4,campos:5}[tab];
+  const idx = {principal:0,seguimiento:1,mapa:2,comparativo:3,logistica:4,visitas:5,campos:6}[tab];
   document.querySelectorAll('.tabs .tab-btn')[idx].classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   renderTabActiva();
@@ -772,6 +809,7 @@ function renderTabActiva() {
   }
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
+  if (activeTab === 'logistica')      renderLogistica(datos);
   if (activeTab === 'visitas')        renderSeguimiento(datos);
   if (activeTab === 'campos')         renderCampos(datos);
   if (activeTab === 'seguimiento')    renderSeguimientoDashboard(datos);
@@ -1329,6 +1367,172 @@ function renderChartCosechas() {
 function cambiarUnidadChartCosechas(valor) {
   unidadChartCosechas = valor;
   renderChartCosechas();
+}
+
+// ─── TAB LOGÍSTICA ────────────────────────────────────────
+function idCampoDe(l) {
+  return [l.productor, l.nombre_campo, l.campana].join('||');
+}
+
+function anioCosechaDeCampana(campana) {
+  const partes = String(campana).split('/');
+  const sufijo = partes[1] || partes[0];
+  const n = parseInt(sufijo, 10);
+  if (isNaN(n)) return new Date().getFullYear();
+  return n < 100 ? 2000 + n : n;
+}
+
+function lunesDeSemana(fecha) {
+  const d = new Date(fecha);
+  const diaSemana = d.getDay(); // 0=domingo
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + offset);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function construirSemanasLogistica(anio) {
+  const inicio = new Date(anio, 2, 1);   // 1 de marzo
+  const fin    = new Date(anio, 9, 31);  // 31 de octubre
+  const out = [];
+  let cursor = lunesDeSemana(inicio);
+  while (cursor <= fin) {
+    const iso = cursor.toISOString().slice(0,10);
+    out.push({
+      inicio: iso,
+      label: `${String(cursor.getDate()).padStart(2,'0')}/${MESES_ABR[cursor.getMonth()]}`
+    });
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return out;
+}
+
+// Para cada campo (productor+campo+campaña): el tn de cada lote se asume
+// entregado en la semana posterior a su última cosecha informada. Si el
+// campo tiene entregas reales cargadas, esos tn se restan del default
+// (empezando por las semanas más tempranas) y se grafican en sus semanas
+// reales en su lugar.
+function calcularEntregasPorSemana(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+  const anio = anioCosechaDeCampana(campanaMasReciente());
+  const semanas = construirSemanasLogistica(anio);
+
+  const porCampo = {};
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (!v || !v.fecha_cosecha_estimada) return;
+    const rinde = parseFloat(v.rinde_estimado_qqha);
+    if (isNaN(rinde) || rinde <= 0) return;
+    const fechaCosecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
+    if (isNaN(fechaCosecha)) return;
+
+    const tn = rinde * l.area_ha / 10;
+    const semanaEntregaDefault = lunesDeSemana(fechaCosecha);
+    semanaEntregaDefault.setDate(semanaEntregaDefault.getDate() + 7);
+    const isoDefault = semanaEntregaDefault.toISOString().slice(0,10);
+
+    const idc = idCampoDe(l);
+    if (!porCampo[idc]) porCampo[idc] = {};
+    porCampo[idc][isoDefault] = (porCampo[idc][isoDefault] || 0) + tn;
+  });
+
+  const totalPorSemana = {};
+  semanas.forEach(s => totalPorSemana[s.inicio] = 0);
+
+  Object.keys(porCampo).forEach(idc => {
+    const defaults = porCampo[idc];
+    const real = (entregasPorCampo[idc] && entregasPorCampo[idc].semanas) || {};
+    let restante = Object.values(real).reduce((a,b) => a+b, 0);
+
+    Object.keys(defaults).sort().forEach(iso => {
+      let tn = defaults[iso];
+      if (restante > 0) {
+        const resta = Math.min(restante, tn);
+        tn -= resta;
+        restante -= resta;
+      }
+      if (totalPorSemana.hasOwnProperty(iso)) totalPorSemana[iso] += tn;
+    });
+
+    Object.keys(real).forEach(iso => {
+      if (totalPorSemana.hasOwnProperty(iso)) totalPorSemana[iso] += real[iso];
+    });
+  });
+
+  return { semanas, totalPorSemana };
+}
+
+function renderLogistica(datos) {
+  datosCacheLogistica = calcularEntregasPorSemana(datos);
+  renderChartEntregasTiempo();
+  renderChartCupoSemanal();
+}
+
+function renderChartEntregasTiempo() {
+  const { semanas, totalPorSemana } = datosCacheLogistica;
+  const totalGeneral = Object.values(totalPorSemana).reduce((a,b) => a+b, 0);
+  let acumulado = 0;
+  const data = semanas.map(s => {
+    acumulado += totalPorSemana[s.inicio];
+    return unidadChartLogistica === 'pct' ? (totalGeneral ? acumulado / totalGeneral * 100 : 0) : acumulado;
+  });
+  const labels = semanas.map(s => s.label);
+  const unidadLabel = unidadChartLogistica === 'pct' ? '% avance' : 'Toneladas';
+
+  if (charts.logisticaEntregas) charts.logisticaEntregas.destroy();
+  charts.logisticaEntregas = new Chart(document.getElementById('chart-logistica-entregas'), {
+    type: 'line',
+    data: { labels, datasets:[{
+      label: 'Entregas proyectadas',
+      data,
+      borderColor: '#3a6b2a',
+      backgroundColor: '#3a6b2a26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartLogistica === 'pct' ? '%' : 'tn'}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartLogistica(valor) {
+  unidadChartLogistica = valor;
+  renderChartEntregasTiempo();
+}
+
+function renderChartCupoSemanal() {
+  const { semanas, totalPorSemana } = datosCacheLogistica;
+  const labels = semanas.map(s => s.label);
+  const data = semanas.map(s => Math.round((totalPorSemana[s.inicio] || 0) / 30));
+
+  if (charts.logisticaCupo) charts.logisticaCupo.destroy();
+  charts.logisticaCupo = new Chart(document.getElementById('chart-logistica-cupo'), {
+    type: 'bar',
+    data: { labels, datasets:[{ data, backgroundColor:'#3a6b2a', borderRadius:4 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw} camión(es) de 30tn` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10}, stepSize:1 } }
+      }
+    }
+  });
 }
 
 // ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
