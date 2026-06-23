@@ -238,7 +238,7 @@
       </div>
 
       <div class="card">
-        <div class="card-title">Siembra declarada</div>
+        <div class="card-title">Siembra</div>
         <div class="chart-wrap" id="chart-linea-wrap"><canvas id="chart-linea"></canvas></div>
       </div>
 
@@ -476,6 +476,7 @@ async function cargarDatos() {
     allLotes   = (Array.isArray(data) ? data : []).map(normalizarLote);
     allVisitas = Array.isArray(visitas) ? visitas : [];
     aplicarUltimaSiembra();
+    aplicarUltimaFechaSiembra();
     construirColoresCampana();
     document.getElementById('loading-bar').style.display = 'none';
   } catch(e) {
@@ -521,6 +522,21 @@ function aplicarUltimaSiembra() {
   allLotes.forEach(l=>{
     const u = ultimaPorLote[l.id_lote];
     if (u) l.siembra = u.siembra;
+  });
+}
+
+// Si el técnico confirmó una fecha de siembra real en una visita, esa fecha
+// reemplaza a la declarada en la carga del lote para reflejar el avance real.
+function aplicarUltimaFechaSiembra() {
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v.fecha_siembra) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l.fecha_siembra_estimada = aFechaISO(u.fecha_siembra);
   });
 }
 
