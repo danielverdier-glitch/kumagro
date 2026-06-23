@@ -761,7 +761,7 @@ function ultimaPorLoteVisitas(datos) {
   allVisitas.forEach(v=>{
     if (!idsVisibles.has(v.id_lote)) return;
     const actual = ultima[v.id_lote];
-    if (!actual || aFechaISO(v.fecha_visita) > aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
   });
   return ultima;
 }
