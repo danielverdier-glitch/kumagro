@@ -15,14 +15,14 @@ function doPost(e) {
         sheet.appendRow(['id_lote','productor','nombre_campo','lote','variedad',
           'fecha_siembra_estimada','campana','provincia','departamento','area_ha',
           'poligono_geojson','fecha_carga','latitud_centroide','longitud_centroide','kmz_filename',
-          'region']);
+          'region','siembra']);
       }
 
       sheet.appendRow([
         d.id_lote, d.productor, d.nombre_campo, d.lote||'', d.variedad,
         d.fecha_siembra_estimada, d.campana, d.provincia, d.departamento, d.area_ha,
         d.poligono_geojson, d.fecha_carga, d.latitud_centroide, d.longitud_centroide,
-        d.kmz_filename||'', d.region||''
+        d.kmz_filename||'', d.region||'', d.siembra||'1ra'
       ]);
     }
 
@@ -55,7 +55,7 @@ function doPost(e) {
           'id_lote','lote','lat_visita','lng_visita','lote_sembrado','fecha_siembra',
           'fecha_cosecha_estimada','estado_fenologico','estado_malezas','malezas_resistentes',
           'observacion_plagas','condicion_cultivo','rinde_estimado_qqha','notas','imagenes',
-          'fecha_carga','lote_cosechado']);
+          'fecha_carga','lote_cosechado','tipo_registro','ha_plan','semilla_up','variedad','siembra']);
       }
 
       sheet.appendRow([
@@ -63,7 +63,8 @@ function doPost(e) {
         d.id_lote, d.lote||'', d.lat_visita, d.lng_visita, d.lote_sembrado?1:0, d.fecha_siembra||'',
         d.fecha_cosecha_estimada||'', d.estado_fenologico||'', d.estado_malezas||'', d.malezas_resistentes?1:0,
         d.observacion_plagas||'', d.condicion_cultivo||'', d.rinde_estimado_qqha||'',
-        d.notas||'', d.imagenes||'', d.fecha_carga, d.lote_cosechado||'No'
+        d.notas||'', d.imagenes||'', d.fecha_carga, d.lote_cosechado||'No',
+        d.tipo_registro||'visita', d.ha_plan||'', d.semilla_up||'', d.variedad||'', d.siembra||''
       ]);
     }
 
