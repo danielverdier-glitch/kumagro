@@ -160,7 +160,7 @@ const LS_KEY = 'kumagro_admin_convenios';
 let allLotes = [];
 let allVisitas = [];
 let ultimaPorLote = {};
-let estado = {}; // { idEstablecimiento: { email, enviado, firmado } }
+let estado = {}; // { cliente: { email, generado, enviado, firmado } }
 
 function escAttr(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
 function aFechaISO(v) {
@@ -169,10 +169,6 @@ function aFechaISO(v) {
   const d = new Date(v);
   if (isNaN(d)) return '';
   return d.toISOString().slice(0,10);
-}
-
-function idEstablecimiento(productor, campo) {
-  return (productor||'') + '__' + (campo||'');
 }
 
 function cargarEstado() {
@@ -352,21 +348,28 @@ function agruparPorClienteYEstablecimiento() {
 }
 
 // ─── TABLA ────────────────────────────────────────────────
-function filaHTML(cliente, est, esPrimeraDelCliente) {
-  const id = idEstablecimiento(cliente, est.nombre);
+// Las acciones de convenio (generar, email, enviar, estados) son por
+// cliente, no por establecimiento: solo se muestran una vez, en la
+// última fila de cada bloque de cliente.
+function filaHTML(cliente, est, esPrimeraDelCliente, esUltimaDelCliente) {
+  const id = cliente;
   const e = estadoDe(id);
-  return `
-  <tr data-id="${escAttr(id)}" class="${esPrimeraDelCliente ? 'fila-nuevo-cliente' : ''}">
-    <td class="col-cliente">${esPrimeraDelCliente ? (cliente||'—') : ''}</td>
-    <td>${est.nombre||'—'}</td>
-    <td>${est.variedad||'—'}</td>
-    <td>${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
-    <td>${est.semillaUp||'—'}</td>
+  const acciones = esUltimaDelCliente ? `
     <td><button type="button" class="btn btn-secundario" onclick="generarConvenio('${escAttr(id)}')">${e.generado ? 'Regenerar' : 'Generar'}</button></td>
     <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
     <td>${tildeHTML(id, 'firmado')}</td>
+  ` : '<td></td><td></td><td></td><td></td><td></td>';
+
+  return `
+  <tr data-id="${escAttr(id)}" class="${esPrimeraDelCliente ? 'fila-nuevo-cliente' : ''} ${esUltimaDelCliente ? 'fila-cliente-acciones' : ''}">
+    <td class="col-cliente">${esPrimeraDelCliente ? (cliente||'—') : ''}</td>
+    <td>${est.nombre||'—'}</td>
+    <td>${est.variedad||'—'}</td>
+    <td>${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+    <td>${est.semillaUp||'—'}</td>
+    ${acciones}
   </tr>`;
 }
 
@@ -382,25 +385,17 @@ function renderTabla() {
   const estadoFiltro = document.getElementById('f-estado-convenio').value;
   let grupos = agruparPorClienteYEstablecimiento();
   if (estadoFiltro) {
-    grupos = grupos
-      .map(g => ({
-        cliente: g.cliente,
-        establecimientos: g.establecimientos.filter(est =>
-          estadoConvenioDe(idEstablecimiento(g.cliente, est.nombre)) === estadoFiltro)
-      }))
-      .filter(g => g.establecimientos.length);
+    grupos = grupos.filter(g => estadoConvenioDe(g.cliente) === estadoFiltro);
   }
   if (!grupos.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No hay establecimientos para los filtros seleccionados</td></tr>';
     actualizarKpis([]);
     return;
   }
-  const ids = [];
-  grupos.forEach(g => g.establecimientos.forEach(est => ids.push(idEstablecimiento(g.cliente, est.nombre))));
   tbody.innerHTML = grupos.map(g =>
-    g.establecimientos.map((est,i) => filaHTML(g.cliente, est, i===0)).join('')
+    g.establecimientos.map((est,i) => filaHTML(g.cliente, est, i===0, i===g.establecimientos.length-1)).join('')
   ).join('');
-  actualizarKpis(ids);
+  actualizarKpis(grupos.map(g => g.cliente));
 }
 
 function actualizarKpis(ids) {
@@ -431,24 +426,29 @@ function toggleEstado(id, campo) {
   renderTabla();
 }
 
-// Genera un borrador simple del convenio como archivo de texto descargable.
-// Es un placeholder: cuando definamos la plantilla real del convenio, esto
-// se reemplaza por la generación del documento definitivo.
-function generarConvenio(id) {
-  const [cliente, establecimiento] = id.split('__');
+// Genera un único borrador de convenio por cliente, con el detalle de
+// todos sus establecimientos. Es un placeholder: cuando definamos la
+// plantilla real del convenio, esto se reemplaza por la generación del
+// documento definitivo.
+function generarConvenio(cliente) {
   const grupos = agruparPorClienteYEstablecimiento();
   const grupo = grupos.find(g => g.cliente === cliente);
-  const est = grupo && grupo.establecimientos.find(e => e.nombre === establecimiento);
-  if (!est) { showToast('No se encontró el establecimiento', true); return; }
+  if (!grupo) { showToast('No se encontró el cliente', true); return; }
+
+  const totalHas = grupo.establecimientos.reduce((s,e)=>s+e.has,0);
+  const detalle = grupo.establecimientos.map(e =>
+    `- ${e.nombre}: ${e.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha, variedad ${e.variedad||'—'}, UP/semilla ${e.semillaUp||'—'}`
+  ).join('\n');
 
   const contenido =
 `CONVENIO SNGM (borrador)
 
 Cliente: ${cliente}
-Establecimiento: ${establecimiento}
-Variedad: ${est.variedad || '—'}
-Hectáreas: ${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}
-UP/Semilla: ${est.semillaUp || '—'}
+Establecimientos: ${grupo.establecimientos.length}
+Total hectáreas: ${totalHas.toLocaleString('es-AR',{maximumFractionDigits:1})}
+
+Detalle por establecimiento:
+${detalle}
 
 Generado: ${new Date().toLocaleString('es-AR')}
 `;
@@ -456,10 +456,10 @@ Generado: ${new Date().toLocaleString('es-AR')}
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `convenio_${cliente}_${establecimiento}.txt`.replace(/\s+/g,'_');
+  a.download = `convenio_${cliente}.txt`.replace(/\s+/g,'_');
   a.click();
   URL.revokeObjectURL(url);
-  const e = estadoDe(id);
+  const e = estadoDe(cliente);
   const yaEstaba = e.generado;
   e.generado = true;
   guardarEstado();
