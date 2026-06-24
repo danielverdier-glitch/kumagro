@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Administrativo SNGM</title>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --rojo:#c23b3b; --verde:#2e8b3d;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+  .container{max-width:1320px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:24px}
+  .nota-version{font-size:12px;color:var(--text-soft);background:var(--gh-gold-light);border:1px solid var(--gh-gold);border-radius:8px;padding:10px 14px;margin-bottom:20px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap;position:sticky;top:0}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr.fila-nuevo-cliente{border-top:2px solid var(--gh-green)}
+  tbody td{padding:8px 10px;vertical-align:middle;white-space:nowrap}
+  td.col-cliente{font-weight:700;color:var(--gh-green-dark)}
+  td input[type=email]{min-width:190px;font-size:12.5px;padding:6px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:var(--font);outline:none}
+  td input[type=email]:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  .btn{padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font);white-space:nowrap}
+  .btn:active{transform:scale(.97)}
+  .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn-secundario{background:transparent;color:var(--gh-green-dark);border:1.5px solid var(--border)}
+  .btn-secundario:hover{background:var(--gh-green-light)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .estado-toggle{cursor:pointer;font-size:16px;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;border:1.5px solid transparent}
+  .estado-si{color:var(--verde)}
+  .estado-no{color:var(--rojo)}
+  .estado-toggle:hover{border-color:var(--border)}
+  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.error{background:#b33}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Administrativo</div>
+</header>
+
+<div class="container">
+  <h1>Administrativo · Convenios</h1>
+  <p class="page-sub">Un cliente por bloque, con un establecimiento (campo) por fila. Generá y enviá el convenio, y marcá su estado.</p>
+
+  <div class="nota-version">
+    ⚠ Primera versión: el botón "Generar" descarga un borrador de texto simple, y "Enviar"
+    simula el envío (todavía no está conectado a un servicio de email real). Los estados
+    "Convenio enviado" / "Convenio firmado" se guardan en este navegador (localStorage) y
+    arrancan en ✗ por defecto. Cuando definamos de dónde van a venir esos datos en serio
+    (planilla, email real, etc.), lo conectamos.
+  </div>
+
+  <div id="loading-bar" class="page-sub">Cargando establecimientos del programa...</div>
+
+  <div class="card">
+    <div class="card-title">Clientes y establecimientos</div>
+    <div class="table-wrap">
+      <table id="tabla-admin">
+        <thead>
+          <tr>
+            <th>Cliente</th><th>Establecimiento</th><th>Variedad</th><th>Has</th><th>UP/Semilla</th>
+            <th>Convenio</th><th>Email</th><th>Enviar</th><th>Convenio enviado</th><th>Convenio firmado</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body">
+          <tr class="empty-row"><td colspan="10">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybJDEJnle43k2ByKJ9xveln0_dxnKCgoN49__UsAudhH3FjS4nMhI1HqfaWeANMIOeUg/exec';
+const LS_KEY = 'kumagro_admin_convenios';
+
+let allLotes = [];
+let allVisitas = [];
+let ultimaPorLote = {};
+let estado = {}; // { idEstablecimiento: { email, enviado, firmado } }
+
+function escAttr(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+function idEstablecimiento(productor, campo) {
+  return (productor||'') + '__' + (campo||'');
+}
+
+function cargarEstado() {
+  try { estado = JSON.parse(localStorage.getItem(LS_KEY)) || {}; }
+  catch(e) { estado = {}; }
+}
+
+function guardarEstado() {
+  localStorage.setItem(LS_KEY, JSON.stringify(estado));
+}
+
+function estadoDe(id) {
+  if (!estado[id]) estado[id] = { email:'', enviado:false, firmado:false };
+  return estado[id];
+}
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  cargarEstado();
+  try {
+    const [resLotes, resVisitas] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+    ]);
+    const data    = await resLotes.json();
+    const visitas = await resVisitas.json();
+    allLotes   = Array.isArray(data) ? data : [];
+    allVisitas = Array.isArray(visitas) ? visitas : [];
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+  }
+  construirUltimaPorLote();
+  renderTabla();
+}
+
+function construirUltimaPorLote() {
+  ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+}
+
+// ─── AGRUPAR POR CLIENTE > ESTABLECIMIENTO ────────────────
+// Cada lote aporta su variedad/has/up-semilla (con el último dato cargado
+// si existe) al establecimiento (campo) al que pertenece.
+function agruparPorClienteYEstablecimiento() {
+  const porCliente = new Map();
+
+  allLotes.forEach(l => {
+    const cliente = l.productor || 'Sin productor';
+    const campo   = l.nombre_campo || 'Sin establecimiento';
+    const ultima  = ultimaPorLote[l.id_lote] || null;
+    const variedad  = (ultima && ultima.variedad ? ultima.variedad : (l.variedad || '')).trim();
+    const semillaUp = (ultima && ultima.semilla_up ? ultima.semilla_up : '').trim();
+    const areaHa    = parseFloat(l.area_ha) || 0;
+
+    if (!porCliente.has(cliente)) porCliente.set(cliente, new Map());
+    const establecimientos = porCliente.get(cliente);
+    if (!establecimientos.has(campo)) {
+      establecimientos.set(campo, { has:0, variedades:new Set(), semillasUp:new Set() });
+    }
+    const e = establecimientos.get(campo);
+    e.has += areaHa;
+    if (variedad) e.variedades.add(variedad);
+    if (semillaUp) e.semillasUp.add(semillaUp);
+  });
+
+  const clientes = [...porCliente.keys()].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  return clientes.map(cliente => {
+    const establecimientos = porCliente.get(cliente);
+    const nombres = [...establecimientos.keys()].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+    return {
+      cliente,
+      establecimientos: nombres.map(nombre => {
+        const e = establecimientos.get(nombre);
+        return {
+          nombre,
+          has: e.has,
+          variedad: [...e.variedades].join(' / '),
+          semillaUp: [...e.semillasUp].join(' / ')
+        };
+      })
+    };
+  });
+}
+
+// ─── TABLA ────────────────────────────────────────────────
+function filaHTML(cliente, est, esPrimeraDelCliente) {
+  const id = idEstablecimiento(cliente, est.nombre);
+  const e = estadoDe(id);
+  return `
+  <tr data-id="${escAttr(id)}" class="${esPrimeraDelCliente ? 'fila-nuevo-cliente' : ''}">
+    <td class="col-cliente">${esPrimeraDelCliente ? (cliente||'—') : ''}</td>
+    <td>${est.nombre||'—'}</td>
+    <td>${est.variedad||'—'}</td>
+    <td>${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+    <td>${est.semillaUp||'—'}</td>
+    <td><button type="button" class="btn btn-secundario" onclick="generarConvenio('${escAttr(id)}')">Generar</button></td>
+    <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
+    <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
+    <td>${tildeHTML(id, 'enviado')}</td>
+    <td>${tildeHTML(id, 'firmado')}</td>
+  </tr>`;
+}
+
+function tildeHTML(id, campo) {
+  const e = estadoDe(id);
+  const ok = !!e[campo];
+  return `<span class="estado-toggle ${ok?'estado-si':'estado-no'}" title="Click para cambiar manualmente" onclick="toggleEstado('${escAttr(id)}','${campo}')">${ok ? '✓' : '✗'}</span>`;
+}
+
+function renderTabla() {
+  const tbody = document.getElementById('tabla-body');
+  const grupos = agruparPorClienteYEstablecimiento();
+  if (!grupos.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No hay establecimientos cargados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = grupos.map(g =>
+    g.establecimientos.map((est,i) => filaHTML(g.cliente, est, i===0)).join('')
+  ).join('');
+}
+
+// ─── ACCIONES ─────────────────────────────────────────────
+function onEmailInput(id, valor) {
+  estadoDe(id).email = valor.trim();
+  guardarEstado();
+}
+
+function toggleEstado(id, campo) {
+  const e = estadoDe(id);
+  e[campo] = !e[campo];
+  guardarEstado();
+  renderTabla();
+}
+
+// Genera un borrador simple del convenio como archivo de texto descargable.
+// Es un placeholder: cuando definamos la plantilla real del convenio, esto
+// se reemplaza por la generación del documento definitivo.
+function generarConvenio(id) {
+  const [cliente, establecimiento] = id.split('__');
+  const grupos = agruparPorClienteYEstablecimiento();
+  const grupo = grupos.find(g => g.cliente === cliente);
+  const est = grupo && grupo.establecimientos.find(e => e.nombre === establecimiento);
+  if (!est) { showToast('No se encontró el establecimiento', true); return; }
+
+  const contenido =
+`CONVENIO SNGM (borrador)
+
+Cliente: ${cliente}
+Establecimiento: ${establecimiento}
+Variedad: ${est.variedad || '—'}
+Hectáreas: ${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}
+UP/Semilla: ${est.semillaUp || '—'}
+
+Generado: ${new Date().toLocaleString('es-AR')}
+`;
+  const blob = new Blob([contenido], {type:'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `convenio_${cliente}_${establecimiento}.txt`.replace(/\s+/g,'_');
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Borrador de convenio descargado');
+}
+
+// Simula el envío del convenio por email. Todavía no dispara un email real:
+// solo valida que haya una dirección cargada y marca "Convenio enviado".
+function enviarConvenio(id) {
+  const e = estadoDe(id);
+  if (!e.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email)) {
+    showToast('Cargá un email válido antes de enviar', true);
+    return;
+  }
+  e.enviado = true;
+  guardarEstado();
+  renderTabla();
+  showToast('Convenio "enviado" a ' + e.email + ' (simulado, falta conectar el envío real)');
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+function showToast(msg, error=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = error ? 'show error' : 'show';
+  setTimeout(()=>t.classList.remove('show'), 4000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+cargarDatos();
+</script>
+</body>
+</html>
