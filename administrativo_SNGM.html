@@ -27,6 +27,7 @@
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
   label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
   select{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
   select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
@@ -58,7 +59,7 @@
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
-  @media(max-width:700px){.grid-2,.kpi-row{grid-template-columns:1fr}}
+  @media(max-width:700px){.grid-2,.grid-3,.kpi-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -87,7 +88,7 @@
 
   <div class="card">
     <div class="card-title">Filtros</div>
-    <div class="grid-2">
+    <div class="grid-3">
       <div>
         <label>Cliente</label>
         <select id="f-cliente" onchange="renderTabla()">
@@ -98,6 +99,16 @@
         <label>Campaña</label>
         <select id="f-campana" onchange="renderTabla()">
           <option value="">Todas</option>
+        </select>
+      </div>
+      <div>
+        <label>Estado del convenio</label>
+        <select id="f-estado-convenio" onchange="renderTabla()">
+          <option value="">Todos</option>
+          <option value="sin_generar">Sin generar</option>
+          <option value="sin_enviar">Sin enviar</option>
+          <option value="sin_firmar">Sin firmar</option>
+          <option value="firmado">Firmado</option>
         </select>
       </div>
     </div>
@@ -216,7 +227,19 @@ function lotesFiltrados() {
 function limpiarFiltros() {
   document.getElementById('f-cliente').value = '';
   document.getElementById('f-campana').value = '';
+  document.getElementById('f-estado-convenio').value = '';
   renderTabla();
+}
+
+// Estado del convenio según los 3 toggles: sin generar (todavía no se
+// generó), sin enviar (generado pero no enviado), sin firmar (enviado pero
+// no firmado) y firmado.
+function estadoConvenioDe(id) {
+  const e = estadoDe(id);
+  if (e.firmado) return 'firmado';
+  if (e.enviado) return 'sin_firmar';
+  if (e.generado) return 'sin_enviar';
+  return 'sin_generar';
 }
 
 // ─── CARGA DE DATOS ───────────────────────────────────────
@@ -356,7 +379,17 @@ function tildeHTML(id, campo) {
 function renderTabla() {
   construirFiltros();
   const tbody = document.getElementById('tabla-body');
-  const grupos = agruparPorClienteYEstablecimiento();
+  const estadoFiltro = document.getElementById('f-estado-convenio').value;
+  let grupos = agruparPorClienteYEstablecimiento();
+  if (estadoFiltro) {
+    grupos = grupos
+      .map(g => ({
+        cliente: g.cliente,
+        establecimientos: g.establecimientos.filter(est =>
+          estadoConvenioDe(idEstablecimiento(g.cliente, est.nombre)) === estadoFiltro)
+      }))
+      .filter(g => g.establecimientos.length);
+  }
   if (!grupos.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No hay establecimientos para los filtros seleccionados</td></tr>';
     actualizarKpis([]);
@@ -378,9 +411,11 @@ function actualizarKpis(ids) {
     if (e.enviado) enviados++;
     if (e.firmado) firmados++;
   });
-  document.getElementById('kpi-generados').textContent = generados;
-  document.getElementById('kpi-enviados').textContent = enviados;
-  document.getElementById('kpi-firmados').textContent = firmados;
+  const total = ids.length;
+  const pct = n => total ? Math.round((n/total)*100) + '%' : '0%';
+  document.getElementById('kpi-generados').textContent = pct(generados);
+  document.getElementById('kpi-enviados').textContent = pct(enviados);
+  document.getElementById('kpi-firmados').textContent = pct(firmados);
 }
 
 // ─── ACCIONES ─────────────────────────────────────────────
