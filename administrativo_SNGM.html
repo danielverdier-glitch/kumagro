@@ -26,6 +26,14 @@
   .nota-version{font-size:12px;color:var(--text-soft);background:var(--gh-gold-light);border:1px solid var(--gh-gold);border-radius:8px;padding:10px 14px;margin-bottom:20px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  select{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
+  select:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .kpi-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:20px}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+  .kpi-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-soft);margin-bottom:8px}
+  .kpi-valor{font-size:28px;font-weight:700;color:var(--gh-green-dark)}
   .table-wrap{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:13px}
   thead tr{background:var(--gh-green-dark);color:white}
@@ -50,6 +58,7 @@
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
+  @media(max-width:700px){.grid-2,.kpi-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -65,14 +74,50 @@
   <p class="page-sub">Un cliente por bloque, con un establecimiento (campo) por fila. Generá y enviá el convenio, y marcá su estado.</p>
 
   <div class="nota-version">
-    ⚠ Primera versión: el botón "Generar" descarga un borrador de texto simple, y "Enviar"
-    simula el envío (todavía no está conectado a un servicio de email real). Los estados
-    "Convenio enviado" / "Convenio firmado" se guardan en este navegador (localStorage) y
-    arrancan en ✗ por defecto. Cuando definamos de dónde van a venir esos datos en serio
-    (planilla, email real, etc.), lo conectamos.
+    ⚠ Primera versión: el botón "Generar" descarga un borrador de texto simple y pasa a decir
+    "Regenerar" una vez generado; "Enviar" simula el envío (todavía no está conectado a un
+    servicio de email real). Los estados "Generado" / "Convenio enviado" / "Convenio firmado"
+    se guardan en este navegador (localStorage) y arrancan en ✗ por defecto. Cuando definamos
+    de dónde van a venir esos datos en serio (planilla, email real, repositorio de convenios,
+    etc.), lo conectamos. Los lotes sin UP/semilla cargada se marcan automáticamente como
+    "Semilla" y quedan grabados en la planilla como un registro de tipo "inscripcion".
   </div>
 
   <div id="loading-bar" class="page-sub">Cargando establecimientos del programa...</div>
+
+  <div class="card">
+    <div class="card-title">Filtros</div>
+    <div class="grid-2">
+      <div>
+        <label>Cliente</label>
+        <select id="f-cliente" onchange="renderTabla()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div>
+        <label>Campaña</label>
+        <select id="f-campana" onchange="renderTabla()">
+          <option value="">Todas</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" class="btn btn-secundario" onclick="limpiarFiltros()" style="margin-top:14px">Limpiar filtros</button>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Convenios generados</div>
+      <div class="kpi-valor" id="kpi-generados">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Convenios enviados</div>
+      <div class="kpi-valor" id="kpi-enviados">0</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Convenios firmados</div>
+      <div class="kpi-valor" id="kpi-firmados">0</div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="card-title">Clientes y establecimientos</div>
@@ -129,8 +174,49 @@ function guardarEstado() {
 }
 
 function estadoDe(id) {
-  if (!estado[id]) estado[id] = { email:'', enviado:false, firmado:false };
+  if (!estado[id]) estado[id] = { email:'', generado:false, enviado:false, firmado:false };
   return estado[id];
+}
+
+function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
+  const sel = document.getElementById(id);
+  const valorValido = valorActual && valores.includes(valorActual) ? valorActual : '';
+  sel.innerHTML = `<option value="">${etiquetaTodos}</option>` + valores.map(v=>`<option value="${escAttr(v)}">${v}</option>`).join('');
+  sel.value = valorValido;
+}
+
+// Los filtros se acotan entre sí: las opciones de "Cliente" se calculan
+// ignorando el propio filtro de cliente (pero respetando el de campaña), y
+// viceversa.
+function construirFiltros() {
+  const cliente = document.getElementById('f-cliente').value;
+  const campana = document.getElementById('f-campana').value;
+
+  const filtrar = (omitir) => allLotes.filter(l =>
+    (omitir === 'cliente' || !cliente || l.productor === cliente) &&
+    (omitir === 'campana' || !campana || l.campana  === campana)
+  );
+
+  const clientes = [...new Set(filtrar('cliente').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  const campanas = [...new Set(filtrar('campana').map(l=>l.campana).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+
+  rellenarSelect('f-cliente', clientes, 'Todos', cliente);
+  rellenarSelect('f-campana', campanas, 'Todas', campana);
+}
+
+function lotesFiltrados() {
+  const cliente = document.getElementById('f-cliente').value;
+  const campana = document.getElementById('f-campana').value;
+  return allLotes.filter(l =>
+    (!cliente || l.productor === cliente) &&
+    (!campana || l.campana  === campana)
+  );
+}
+
+function limpiarFiltros() {
+  document.getElementById('f-cliente').value = '';
+  document.getElementById('f-campana').value = '';
+  renderTabla();
 }
 
 // ─── CARGA DE DATOS ───────────────────────────────────────
@@ -150,6 +236,7 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
   }
   construirUltimaPorLote();
+  await asegurarSemillaUpPorDefecto();
   renderTabla();
 }
 
@@ -161,18 +248,54 @@ function construirUltimaPorLote() {
   });
 }
 
+// Para los lotes que todavía no tienen UP/semilla cargada, se fija "Semilla"
+// como valor por defecto y se graba como un registro de tipo "inscripcion".
+// Al quedar guardado, en la próxima carga ya aparece como dato existente y
+// no se vuelve a enviar.
+async function asegurarSemillaUpPorDefecto() {
+  const pendientes = allLotes.filter(l => {
+    const ultima = ultimaPorLote[l.id_lote];
+    return !(ultima && ultima.semilla_up);
+  });
+  if (!pendientes.length) return;
+
+  const fechaHoy = new Date().toISOString().slice(0,10);
+  await Promise.all(pendientes.map(l => {
+    const registro = {
+      id_visita: 'INSCRIPCION-' + l.id_lote, fecha_visita: fechaHoy, tecnico:'',
+      productor: l.productor, nombre_campo: l.nombre_campo, id_lote: l.id_lote, lote: l.lote||'',
+      lat_visita:'', lng_visita:'', lote_sembrado:false, fecha_siembra:'', fecha_cosecha_estimada:'',
+      estado_fenologico:'', estado_malezas:'', malezas_resistentes:false, observacion_plagas:'',
+      condicion_cultivo:'', rinde_estimado_qqha:'', notas:'', imagenes:'', fecha_carga: new Date().toISOString(),
+      lote_cosechado:'No', tipo_registro:'inscripcion', ha_plan:'', semilla_up:'Semilla',
+      variedad: l.variedad||'', siembra: l.siembra||'1ra'
+    };
+    ultimaPorLote[l.id_lote] = Object.assign({}, ultimaPorLote[l.id_lote]||{}, registro);
+    return fetch(APPS_SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify({ action:'appendVisita', data: registro })
+    }).catch(()=>{});
+  }));
+}
+
+// Si un lote no tiene UP/semilla cargada todavía, se asume "Semilla" por
+// defecto (ver asegurarSemillaUpPorDefecto, que además graba ese valor).
+function semillaUpDe(ultima) {
+  return (ultima && ultima.semilla_up) ? ultima.semilla_up : 'Semilla';
+}
+
 // ─── AGRUPAR POR CLIENTE > ESTABLECIMIENTO ────────────────
 // Cada lote aporta su variedad/has/up-semilla (con el último dato cargado
 // si existe) al establecimiento (campo) al que pertenece.
 function agruparPorClienteYEstablecimiento() {
   const porCliente = new Map();
 
-  allLotes.forEach(l => {
+  lotesFiltrados().forEach(l => {
     const cliente = l.productor || 'Sin productor';
     const campo   = l.nombre_campo || 'Sin establecimiento';
     const ultima  = ultimaPorLote[l.id_lote] || null;
     const variedad  = (ultima && ultima.variedad ? ultima.variedad : (l.variedad || '')).trim();
-    const semillaUp = (ultima && ultima.semilla_up ? ultima.semilla_up : '').trim();
+    const semillaUp = semillaUpDe(ultima);
     const areaHa    = parseFloat(l.area_ha) || 0;
 
     if (!porCliente.has(cliente)) porCliente.set(cliente, new Map());
@@ -183,7 +306,7 @@ function agruparPorClienteYEstablecimiento() {
     const e = establecimientos.get(campo);
     e.has += areaHa;
     if (variedad) e.variedades.add(variedad);
-    if (semillaUp) e.semillasUp.add(semillaUp);
+    e.semillasUp.add(semillaUp);
   });
 
   const clientes = [...porCliente.keys()].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
@@ -216,7 +339,7 @@ function filaHTML(cliente, est, esPrimeraDelCliente) {
     <td>${est.variedad||'—'}</td>
     <td>${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
     <td>${est.semillaUp||'—'}</td>
-    <td><button type="button" class="btn btn-secundario" onclick="generarConvenio('${escAttr(id)}')">Generar</button></td>
+    <td><button type="button" class="btn btn-secundario" onclick="generarConvenio('${escAttr(id)}')">${e.generado ? 'Regenerar' : 'Generar'}</button></td>
     <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
@@ -231,15 +354,33 @@ function tildeHTML(id, campo) {
 }
 
 function renderTabla() {
+  construirFiltros();
   const tbody = document.getElementById('tabla-body');
   const grupos = agruparPorClienteYEstablecimiento();
   if (!grupos.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No hay establecimientos cargados</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="10">No hay establecimientos para los filtros seleccionados</td></tr>';
+    actualizarKpis([]);
     return;
   }
+  const ids = [];
+  grupos.forEach(g => g.establecimientos.forEach(est => ids.push(idEstablecimiento(g.cliente, est.nombre))));
   tbody.innerHTML = grupos.map(g =>
     g.establecimientos.map((est,i) => filaHTML(g.cliente, est, i===0)).join('')
   ).join('');
+  actualizarKpis(ids);
+}
+
+function actualizarKpis(ids) {
+  let generados=0, enviados=0, firmados=0;
+  ids.forEach(id => {
+    const e = estadoDe(id);
+    if (e.generado) generados++;
+    if (e.enviado) enviados++;
+    if (e.firmado) firmados++;
+  });
+  document.getElementById('kpi-generados').textContent = generados;
+  document.getElementById('kpi-enviados').textContent = enviados;
+  document.getElementById('kpi-firmados').textContent = firmados;
 }
 
 // ─── ACCIONES ─────────────────────────────────────────────
@@ -283,7 +424,12 @@ Generado: ${new Date().toLocaleString('es-AR')}
   a.download = `convenio_${cliente}_${establecimiento}.txt`.replace(/\s+/g,'_');
   a.click();
   URL.revokeObjectURL(url);
-  showToast('Borrador de convenio descargado');
+  const e = estadoDe(id);
+  const yaEstaba = e.generado;
+  e.generado = true;
+  guardarEstado();
+  renderTabla();
+  showToast(yaEstaba ? 'Convenio regenerado' : 'Borrador de convenio descargado');
 }
 
 // Simula el envío del convenio por email. Todavía no dispara un email real:
