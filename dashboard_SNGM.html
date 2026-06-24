@@ -80,6 +80,20 @@
   .kpi-label{font-size:11.5px;color:var(--text-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:8px}
   .kpi-sub{font-size:12px;color:var(--text-soft);margin-top:10px}
 
+  .gauge-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px}
+  .gauge-semi{position:relative;width:200px;height:100px;overflow:hidden}
+  .gauge-semi::before{content:"";position:absolute;top:0;left:0;width:200px;height:200px;border-radius:50%;
+    background:conic-gradient(from 180deg, var(--gh-green-dark) 0% var(--gauge-firmado-half,0%), var(--gh-green-light) var(--gauge-firmado-half,0%) 50%, transparent 50% 100%)}
+  .gauge-needle{position:absolute;left:50%;bottom:0;width:2px;height:84px;background:#b33;transform-origin:bottom center;
+    transform:rotate(calc(var(--gauge-enviado-deg,-90deg)));border-radius:2px}
+  .gauge-needle::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:#b33;
+    border-radius:50%;transform:translateX(-50%)}
+  .gauge-labels{display:flex;gap:18px;font-size:12px;color:var(--text-soft)}
+  .gauge-labels b{color:var(--text)}
+  .gauge-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .gauge-dot-firmado{background:var(--gh-green-dark)}
+  .gauge-dot-enviado{background:#b33}
+
   .rank-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;font-size:12.5px}
   .rank-pos{min-width:18px;color:var(--text-soft);font-weight:700}
   .rank-name{min-width:110px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
@@ -221,12 +235,24 @@
 
     <!-- TAB PRINCIPAL -->
     <div class="tab-panel active" id="tab-principal">
-      <div class="card">
-        <div class="card-title">Hectáreas cargadas</div>
-        <div class="kpi-box">
-          <div><span class="kpi-value" id="kpi-ha">0</span><span class="kpi-unit">ha</span></div>
-          <div class="kpi-label">Total con filtros aplicados</div>
-          <div class="kpi-sub" id="kpi-lotes">0 lotes</div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Hectáreas cargadas</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="kpi-ha">0</span><span class="kpi-unit">ha</span></div>
+            <div class="kpi-label" id="kpi-ha-plan">Plan: 0 ha</div>
+            <div class="kpi-sub" id="kpi-lotes">0 lotes</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Convenios firmados / enviados</div>
+          <div class="gauge-box">
+            <div class="gauge-semi" id="gauge-convenios"><div class="gauge-needle" id="gauge-convenios-needle"></div></div>
+            <div class="gauge-labels">
+              <span><span class="gauge-dot gauge-dot-firmado"></span>Firmados: <b id="gauge-firmado-pct">0%</b></span>
+              <span><span class="gauge-dot gauge-dot-enviado"></span>Enviados: <b id="gauge-enviado-pct">0%</b></span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -988,6 +1014,33 @@ function renderKpi(datos) {
   const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
   document.getElementById('kpi-ha').textContent = totalHa.toLocaleString('es-AR',{maximumFractionDigits:1});
   document.getElementById('kpi-lotes').textContent = datos.length + (datos.length===1?' lote':' lotes');
+  const totalHaPlan = allLotes.reduce((s,l)=>s+l.area_ha,0);
+  document.getElementById('kpi-ha-plan').textContent = 'Plan: ' + totalHaPlan.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' ha';
+  renderGaugeConvenios(datos);
+}
+
+// ─── GAUGE CONVENIOS FIRMADOS / ENVIADOS ──────────────────
+// % = clientes con convenio firmado (o enviado) sobre el total de
+// clientes con lotes inscriptos (según los filtros aplicados). El estado
+// de los convenios se guarda en localStorage desde la hoja administrativa.
+function renderGaugeConvenios(datos) {
+  let estadoConvenios = {};
+  try { estadoConvenios = JSON.parse(localStorage.getItem('kumagro_admin_convenios')) || {}; } catch(e) { estadoConvenios = {}; }
+  const productores = [...new Set(datos.map(l=>l.productor).filter(Boolean))];
+  const total = productores.length;
+  let firmados = 0, enviados = 0;
+  productores.forEach(p => {
+    const e = estadoConvenios[p];
+    if (e && e.firmado) firmados++;
+    if (e && e.enviado) enviados++;
+  });
+  const pctFirmado = total ? Math.round((firmados/total)*100) : 0;
+  const pctEnviado = total ? Math.round((enviados/total)*100) : 0;
+  document.getElementById('gauge-firmado-pct').textContent = pctFirmado + '%';
+  document.getElementById('gauge-enviado-pct').textContent = pctEnviado + '%';
+  const gauge = document.getElementById('gauge-convenios');
+  gauge.style.setProperty('--gauge-firmado-half', (pctFirmado/2) + '%');
+  document.getElementById('gauge-convenios-needle').style.setProperty('--gauge-enviado-deg', (-90 + (pctEnviado/100*180)) + 'deg');
 }
 
 function renderPieVariedad(datos) {
