@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kumagro · Administrativo SNGM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   :root {
     --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
@@ -60,6 +61,20 @@
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
   @media(max-width:700px){.grid-2,.grid-3,.kpi-row{grid-template-columns:1fr}}
+
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.show{display:flex}
+  .modal-box{background:var(--surface);border-radius:var(--radius);max-width:760px;width:100%;max-height:92vh;overflow-y:auto;padding:24px 26px}
+  .modal-title{font-size:16px;font-weight:700;color:var(--gh-green-dark);margin-bottom:4px}
+  .modal-sub{font-size:12px;color:var(--text-soft);margin-bottom:18px}
+  .modal-box h3{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gh-green);margin:18px 0 10px;padding-bottom:6px;border-bottom:1.5px solid var(--gh-green-light)}
+  .modal-box input[type=text],.modal-box input[type=number]{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
+  .modal-box input:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .modal-box table{font-size:12.5px}
+  .modal-box thead tr{background:var(--gh-green-light);color:var(--gh-green-dark)}
+  .modal-box td input[type=number]{min-width:80px}
+  #conv-mapa{height:220px;border-radius:8px;border:1.5px solid var(--border);margin-top:4px}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
 </style>
 </head>
 <body>
@@ -74,13 +89,16 @@
   <h1>Administrativo · Convenios</h1>
 
   <div class="nota-version">
-    ⚠ Primera versión: el botón "Generar" descarga un borrador de texto simple y pasa a decir
-    "Regenerar" una vez generado; "Enviar" simula el envío (todavía no está conectado a un
-    servicio de email real). Los estados "Generado" / "Convenio enviado" / "Convenio firmado"
-    se guardan en este navegador (localStorage) y arrancan en ✗ por defecto. Cuando definamos
-    de dónde van a venir esos datos en serio (planilla, email real, repositorio de convenios,
-    etc.), lo conectamos. Los lotes sin UP/semilla cargada se marcan automáticamente como
-    "Semilla" y quedan grabados en la planilla como un registro de tipo "inscripcion".
+    ⚠ Primera versión: el botón "Generar" abre un formulario para completar/editar los datos del
+    convenio (fecha, razón social, CUIT, representante, rol, domicilio, campaña, plazo de entrega,
+    comisión y kilos de semilla por variedad) y descarga un borrador de texto simple; pasa a decir
+    "Regenerar" una vez generado, reabriendo el formulario con los últimos datos guardados.
+    "Enviar" simula el envío (todavía no está conectado a un servicio de email real). Los estados
+    "Generado" / "Convenio enviado" / "Convenio firmado" se guardan en este navegador
+    (localStorage) y arrancan en ✗ por defecto. Cuando definamos de dónde van a venir esos datos en
+    serio (planilla, email real, repositorio de convenios, etc.), lo conectamos. Los lotes sin
+    UP/semilla cargada se marcan automáticamente como "Semilla" y quedan grabados en la planilla
+    como un registro de tipo "inscripcion".
   </div>
 
   <div id="loading-bar" class="page-sub">Cargando establecimientos del programa...</div>
@@ -143,6 +161,50 @@
           <tr class="empty-row"><td colspan="10">Cargando...</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-convenio">
+  <div class="modal-box">
+    <div class="modal-title">Generar convenio</div>
+    <div class="modal-sub" id="conv-modal-sub">Cliente</div>
+
+    <h3>Datos del convenio</h3>
+    <div class="grid-2">
+      <div><label>Fecha</label><input type="text" id="conv-fecha"></div>
+      <div><label>Razón social</label><input type="text" id="conv-razon-social"></div>
+      <div><label>CUIT</label><input type="text" id="conv-cuit" placeholder="20-12345678-9"></div>
+      <div><label>Representante</label><input type="text" id="conv-representante"></div>
+      <div><label>Rol</label><input type="text" id="conv-rol" placeholder="Apoderado, presidente, etc."></div>
+      <div><label>Domicilio</label><input type="text" id="conv-domicilio"></div>
+      <div><label>Campaña</label><input type="text" id="conv-campana"></div>
+      <div><label>Plazo máximo de entrega (días)</label><input type="number" id="conv-plazo" min="0"></div>
+      <div><label>Comisión de comercialización (%)</label><input type="number" id="conv-comision" min="0" step="0.1"></div>
+    </div>
+
+    <h3>Establecimientos</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Establecimiento</th><th>Partido</th><th>Provincia</th><th>Coordenadas (centroide)</th><th>Has</th></tr></thead>
+        <tbody id="conv-tabla-establecimientos"></tbody>
+      </table>
+    </div>
+
+    <h3>Variedad y kilos de semilla</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Variedad</th><th>Has</th><th>Kilos de semilla</th></tr></thead>
+        <tbody id="conv-tabla-variedades"></tbody>
+      </table>
+    </div>
+
+    <h3>Imagen georreferenciada del polígono</h3>
+    <div id="conv-mapa"></div>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-secundario" onclick="cerrarModalConvenio()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmarGenerarConvenio()">Generar convenio</button>
     </div>
   </div>
 </div>
@@ -354,7 +416,7 @@ function filaHTML(cliente, est, esPrimeraDelCliente, esUltimaDelCliente) {
   const id = cliente;
   const e = estadoDe(id);
   const acciones = esUltimaDelCliente ? `
-    <td><button type="button" class="btn btn-secundario" onclick="generarConvenio('${escAttr(id)}')">${e.generado ? 'Regenerar' : 'Generar'}</button></td>
+    <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(id)}')">${e.generado ? 'Regenerar' : 'Generar'}</button></td>
     <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
@@ -425,29 +487,187 @@ function toggleEstado(id, campo) {
   renderTabla();
 }
 
-// Genera un único borrador de convenio por cliente, con el detalle de
-// todos sus establecimientos. Es un placeholder: cuando definamos la
-// plantilla real del convenio, esto se reemplaza por la generación del
-// documento definitivo.
-function generarConvenio(cliente) {
-  const grupos = agruparPorClienteYEstablecimiento();
-  const grupo = grupos.find(g => g.cliente === cliente);
-  if (!grupo) { showToast('No se encontró el cliente', true); return; }
+// ─── CAMPAÑA ACTUAL (regla del convenio) ──────────────────
+// La campaña vigente cambia el 1° de julio: antes de esa fecha sigue
+// corriendo la campaña del año anterior/actual (ej. 25/26 hasta el
+// 30/06/2026), y desde el 1° de julio arranca la siguiente (26/27).
+function campanaConvenioActual(fecha) {
+  const anio = fecha.getFullYear();
+  const julio1 = new Date(anio, 6, 1);
+  return fecha >= julio1
+    ? `${String(anio).slice(2)}/${String(anio+1).slice(2)}`
+    : `${String(anio-1).slice(2)}/${String(anio).slice(2)}`;
+}
 
-  const totalHas = grupo.establecimientos.reduce((s,e)=>s+e.has,0);
-  const detalle = grupo.establecimientos.map(e =>
-    `- ${e.nombre}: ${e.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha, variedad ${e.variedad||'—'}, UP/semilla ${e.semillaUp||'—'}`
+const MESES_LARGO = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+function formatearFechaLarga(fecha) {
+  return `${fecha.getDate()} de ${MESES_LARGO[fecha.getMonth()]} de ${fecha.getFullYear()}`;
+}
+
+// Datos por establecimiento del cliente (para la tabla del formulario):
+// toma provincia/partido/centroide del primer lote de cada campo.
+function obtenerEstablecimientosCliente(cliente) {
+  const porCampo = new Map();
+  lotesFiltrados().filter(l => l.productor === cliente).forEach(l => {
+    const campo = l.nombre_campo || 'Sin establecimiento';
+    if (!porCampo.has(campo)) {
+      porCampo.set(campo, {
+        nombre: campo,
+        provincia: l.provincia || '—',
+        partido: l.departamento || '—',
+        lat: parseFloat(l.latitud_centroide),
+        lng: parseFloat(l.longitud_centroide),
+        has: 0
+      });
+    }
+    porCampo.get(campo).has += parseFloat(l.area_ha) || 0;
+  });
+  return [...porCampo.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es',{sensitivity:'base'}));
+}
+
+// Has por variedad del cliente (para la tabla de kilos de semilla): por
+// defecto, kilos = has x 60.
+function obtenerVariedadesCliente(cliente) {
+  const porVariedad = new Map();
+  lotesFiltrados().filter(l => l.productor === cliente).forEach(l => {
+    const ultima = ultimaPorLote[l.id_lote] || null;
+    const variedad = ((ultima && ultima.variedad ? ultima.variedad : l.variedad) || 'Sin dato').trim();
+    porVariedad.set(variedad, (porVariedad.get(variedad)||0) + (parseFloat(l.area_ha) || 0));
+  });
+  return [...porVariedad.entries()].map(([variedad,has]) => ({ variedad, has }))
+    .sort((a,b)=>a.variedad.localeCompare(b.variedad,'es',{sensitivity:'base'}));
+}
+
+// ─── MODAL DE GENERACIÓN DE CONVENIO ──────────────────────
+let clienteModalActual = null;
+let mapaConvenio = null;
+
+function abrirModalConvenio(cliente) {
+  const establecimientos = obtenerEstablecimientosCliente(cliente);
+  if (!establecimientos.length) { showToast('No se encontró el cliente', true); return; }
+  const variedades = obtenerVariedadesCliente(cliente);
+  const e = estadoDe(cliente);
+  const datosPrevios = e.formConvenio || {};
+  clienteModalActual = cliente;
+
+  document.getElementById('conv-modal-sub').textContent = cliente;
+  document.getElementById('conv-fecha').value = datosPrevios.fecha || formatearFechaLarga(new Date());
+  document.getElementById('conv-razon-social').value = datosPrevios.razonSocial || cliente;
+  document.getElementById('conv-cuit').value = datosPrevios.cuit || '';
+  document.getElementById('conv-representante').value = datosPrevios.representante || '';
+  document.getElementById('conv-rol').value = datosPrevios.rol || '';
+  document.getElementById('conv-domicilio').value = datosPrevios.domicilio || '';
+  document.getElementById('conv-campana').value = datosPrevios.campana || campanaConvenioActual(new Date());
+  document.getElementById('conv-plazo').value = datosPrevios.plazo != null ? datosPrevios.plazo : 120;
+  document.getElementById('conv-comision').value = datosPrevios.comision != null ? datosPrevios.comision : 2;
+
+  document.getElementById('conv-tabla-establecimientos').innerHTML = establecimientos.map(est => `
+    <tr>
+      <td>${est.nombre}</td>
+      <td>${est.partido}</td>
+      <td>${est.provincia}</td>
+      <td>${!isNaN(est.lat) && !isNaN(est.lng) ? est.lat.toFixed(5)+', '+est.lng.toFixed(5) : '—'}</td>
+      <td>${est.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+    </tr>`).join('');
+
+  const kilosPrevios = datosPrevios.variedades || {};
+  document.getElementById('conv-tabla-variedades').innerHTML = variedades.map((v,i) => `
+    <tr>
+      <td>${v.variedad}</td>
+      <td>${v.has.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+      <td><input type="number" min="0" id="conv-kg-${i}" data-variedad="${escAttr(v.variedad)}"
+        value="${kilosPrevios[v.variedad] != null ? kilosPrevios[v.variedad] : Math.round(v.has*60)}"></td>
+    </tr>`).join('');
+
+  document.getElementById('modal-convenio').classList.add('show');
+  setTimeout(() => renderMapaConvenio(establecimientos, cliente), 50);
+}
+
+function renderMapaConvenio(establecimientos, cliente) {
+  if (mapaConvenio) { mapaConvenio.remove(); mapaConvenio = null; }
+  mapaConvenio = L.map('conv-mapa', { attributionControl:false });
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom:19 }).addTo(mapaConvenio);
+
+  const poligonos = [];
+  lotesFiltrados().filter(l => l.productor === cliente && l.poligono_geojson).forEach(l => {
+    let geom;
+    try { geom = JSON.parse(l.poligono_geojson); } catch(e) { return; }
+    if (!geom || !geom.coordinates) return;
+    const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+    const poly = L.polygon(ll, { color:'#3a6b2a', fillColor:'#3a6b2a', fillOpacity:.45, weight:1.5 }).addTo(mapaConvenio);
+    poligonos.push(poly);
+  });
+
+  if (poligonos.length) {
+    mapaConvenio.fitBounds(L.featureGroup(poligonos).getBounds(), { padding:[20,20] });
+  } else {
+    mapaConvenio.setView([-34.5,-63], 5);
+  }
+  mapaConvenio.invalidateSize();
+}
+
+function cerrarModalConvenio() {
+  document.getElementById('modal-convenio').classList.remove('show');
+  if (mapaConvenio) { mapaConvenio.remove(); mapaConvenio = null; }
+  clienteModalActual = null;
+}
+
+function confirmarGenerarConvenio() {
+  const cliente = clienteModalActual;
+  if (!cliente) return;
+
+  const establecimientos = obtenerEstablecimientosCliente(cliente);
+  const variedades = obtenerVariedadesCliente(cliente);
+  const variedadesKilos = {};
+  variedades.forEach((v,i) => {
+    const input = document.getElementById('conv-kg-'+i);
+    variedadesKilos[v.variedad] = input ? (parseFloat(input.value) || 0) : Math.round(v.has*60);
+  });
+
+  const formConvenio = {
+    fecha: document.getElementById('conv-fecha').value.trim(),
+    razonSocial: document.getElementById('conv-razon-social').value.trim(),
+    cuit: document.getElementById('conv-cuit').value.trim(),
+    representante: document.getElementById('conv-representante').value.trim(),
+    rol: document.getElementById('conv-rol').value.trim(),
+    domicilio: document.getElementById('conv-domicilio').value.trim(),
+    campana: document.getElementById('conv-campana').value.trim(),
+    plazo: parseFloat(document.getElementById('conv-plazo').value) || 0,
+    comision: parseFloat(document.getElementById('conv-comision').value) || 0,
+    variedades: variedadesKilos
+  };
+
+  const totalHas = establecimientos.reduce((s,e)=>s+e.has,0);
+  const tablaEstablecimientos = establecimientos.map(e =>
+    `- ${e.nombre} (${e.partido}, ${e.provincia}): ${e.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` +
+    (!isNaN(e.lat) && !isNaN(e.lng) ? ` · centroide ${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}` : '')
+  ).join('\n');
+  const tablaVariedades = variedades.map(v =>
+    `- ${v.variedad}: ${v.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha · ${variedadesKilos[v.variedad].toLocaleString('es-AR')} kg de semilla`
   ).join('\n');
 
   const contenido =
 `CONVENIO SNGM (borrador)
 
-Cliente: ${cliente}
-Establecimientos: ${grupo.establecimientos.length}
-Total hectáreas: ${totalHas.toLocaleString('es-AR',{maximumFractionDigits:1})}
+Fecha: ${formConvenio.fecha}
+Razón social: ${formConvenio.razonSocial}
+CUIT: ${formConvenio.cuit || '—'}
+Representante: ${formConvenio.representante || '—'}
+Rol: ${formConvenio.rol || '—'}
+Domicilio: ${formConvenio.domicilio || '—'}
 
-Detalle por establecimiento:
-${detalle}
+Establecimientos (total ${totalHas.toLocaleString('es-AR',{maximumFractionDigits:1})} ha):
+${tablaEstablecimientos}
+
+Variedad y kilos de semilla:
+${tablaVariedades}
+
+Campaña: ${formConvenio.campana}
+Plazo máximo de entrega: ${formConvenio.plazo} días
+Comisión de comercialización: ${formConvenio.comision}%
+
+(La imagen georreferenciada del polígono se ve en el formulario, no se incluye en este archivo de texto)
 
 Generado: ${new Date().toLocaleString('es-AR')}
 `;
@@ -458,10 +678,13 @@ Generado: ${new Date().toLocaleString('es-AR')}
   a.download = `convenio_${cliente}.txt`.replace(/\s+/g,'_');
   a.click();
   URL.revokeObjectURL(url);
+
   const e = estadoDe(cliente);
   const yaEstaba = e.generado;
   e.generado = true;
+  e.formConvenio = formConvenio;
   guardarEstado();
+  cerrarModalConvenio();
   renderTabla();
   showToast(yaEstaba ? 'Convenio regenerado' : 'Borrador de convenio descargado');
 }
@@ -491,5 +714,6 @@ function showToast(msg, error=false) {
 // ─── INIT ─────────────────────────────────────────────────
 cargarDatos();
 </script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
 </html>
