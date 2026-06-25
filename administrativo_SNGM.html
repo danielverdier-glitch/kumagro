@@ -74,6 +74,8 @@
   .modal-box thead tr{background:var(--gh-green-light);color:var(--gh-green-dark)}
   .modal-box td input[type=number]{min-width:80px}
   #conv-mapa{height:220px;border-radius:8px;border:1.5px solid var(--border);margin-top:4px}
+  .conv-mapa-tooltip{background:rgba(255,255,255,.92);border:1px solid #c23b3b;color:var(--text);font-size:11.5px;line-height:1.3;padding:3px 7px;border-radius:5px;box-shadow:none;white-space:nowrap}
+  .conv-mapa-tooltip::before{display:none}
   .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
 </style>
 </head>
@@ -595,7 +597,12 @@ function renderMapaConvenio(establecimientos, cliente) {
     try { geom = JSON.parse(l.poligono_geojson); } catch(e) { return; }
     if (!geom || !geom.coordinates) return;
     const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
-    const poly = L.polygon(ll, { color:'#3a6b2a', fillColor:'#3a6b2a', fillOpacity:.45, weight:1.5 }).addTo(mapaConvenio);
+    const ultima = ultimaPorLote[l.id_lote] || null;
+    const variedad = ((ultima && ultima.variedad ? ultima.variedad : l.variedad) || '—').trim();
+    const has = (parseFloat(l.area_ha) || 0).toLocaleString('es-AR',{maximumFractionDigits:1});
+    const etiqueta = `<strong>${l.nombre_campo||'—'}</strong><br>${has} ha · ${variedad}`;
+    const poly = L.polygon(ll, { color:'#c23b3b', fillColor:'#c23b3b', fillOpacity:.45, weight:2 }).addTo(mapaConvenio);
+    poly.bindTooltip(etiqueta, { permanent:true, direction:'center', className:'conv-mapa-tooltip' });
     poligonos.push(poly);
   });
 
