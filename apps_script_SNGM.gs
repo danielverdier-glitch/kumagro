@@ -121,80 +121,14 @@ function doPost(e) {
       sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     }
 
-    // Usado por administrativo_SNGM.html: toma la plantilla del convenio
-    // (Google Doc), reemplaza los marcadores {{...}} con los datos del
-    // formulario y graba el resultado COMO PDF en la subcarpeta Convenios.
-    // El nombre del archivo lo arma el cliente: 2026_<cliente>_<Semilla|UP>.
+    // Usado por administrativo_SNGM.html: rellena la plantilla (Google Doc) con
+    // los datos del formulario y graba el resultado COMO PDF en la subcarpeta
+    // Convenios. El nombre lo arma el cliente: 2026_<cliente>_<Semilla|UP>.
     if (payload.action === 'generarConvenio') {
-      const d = payload.data;
-      let docId = null;
-      try {
-        // 1. Copiar la plantilla (Google Doc nativo) a un Doc temporal en la
-        //    carpeta Convenios. makeCopy no necesita el Servicio Avanzado.
-        docId = DriveApp.getFileById(CONVENIO_TEMPLATE_ID)
-          .makeCopy('tmp_convenio_' + Date.now(), DriveApp.getFolderById(CONVENIOS_FOLDER))
-          .getId();
-
-        // 2. Reemplazar los marcadores de texto.
-        const doc  = DocumentApp.openById(docId);
-        const body = doc.getBody();
-        const reemplazos = [
-          ['{{fecha}}',           d.fecha],
-          ['{{razonsocial}}',     d.razonsocial],
-          ['{{cuit}}',            d.cuit],
-          ['{{nombrecompleto}}',  d.nombrecompleto],
-          ['{{dni}}',             d.dni],
-          ['{{rol}}',             d.rol],
-          ['{{domicilio}}',       d.domicilio],
-          ['{{direccion}}',       d.domicilio],   // domicilio del Productor (clausula SEPTIMA)
-          ['{{hastotales}}',      d.hastotales],
-          ['{{provincia}}',       d.provincia],
-          ['{{departamento}}',    d.departamento],
-          ['{{coordenadas}}',     d.coordenadas],
-          ['{{establecimiento}}', d.establecimiento],
-          ['{{kilos}}',           d.kilos],
-          ['{{variedad}}',        d.variedad],
-          ['{{plazo}}',           d.plazo],
-          ['{{comision}}',        d.comision]
-        ];
-        reemplazos.forEach(function(par) {
-          body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
-        });
-
-        // 3. {{imagen}} (Anexo I): se inserta la captura del mapa escalada a
-        //    15 cm. DEFENSIVO: si la imagen falla por cualquier motivo, se
-        //    borra el marcador y se sigue, para no perder el resto del
-        //    convenio (este era el bug: sin try/catch, un error acá impedía
-        //    el saveAndClose y se perdían todos los reemplazos de texto).
-        try {
-          if (d.imagen_base64) {
-            const imgBlob = Utilities.newBlob(Utilities.base64Decode(d.imagen_base64), 'image/png', 'mapa.png');
-            insertarImagenEnMarcador(body, '{{imagen}}', imgBlob);
-          } else {
-            body.replaceText(escaparRegex('{{imagen}}'), '');
-          }
-        } catch (imgErr) {
-          body.replaceText(escaparRegex('{{imagen}}'), '');
-        }
-
-        doc.saveAndClose();
-
-        // 4. Exportar a PDF y grabarlo en la carpeta Convenios.
-        const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
-        const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
-        const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
-
-        // 5. Descartar el Google Doc temporal (queda solo el PDF).
-        DriveApp.getFileById(docId).setTrashed(true);
-
-        return ContentService
-          .createTextOutput(JSON.stringify({status:'ok', url:file.getUrl(), nombre:nombre}))
-          .setMimeType(ContentService.MimeType.JSON);
-      } catch (convErr) {
-        // Pase lo que pase, no dejar el Doc temporal colgado en Drive.
-        if (docId) { try { DriveApp.getFileById(docId).setTrashed(true); } catch (limpErr) {} }
-        throw convErr;
-      }
+      const r = generarConvenioPDF_(payload.data);
+      return ContentService
+        .createTextOutput(JSON.stringify({status:'ok', url:r.url, nombre:r.nombre}))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
     return ContentService
@@ -207,6 +141,74 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   } finally {
     lock.releaseLock();
+  }
+}
+
+// Genera el PDF del convenio a partir de la plantilla (Google Doc) y los datos
+// del formulario. Devuelve { url, nombre }. Lanza la excepción si algo falla
+// (el llamador decide qué hacer con el error).
+function generarConvenioPDF_(d) {
+  let docId = null;
+  try {
+    // 1. Copiar la plantilla (Google Doc nativo) a un Doc temporal en la
+    //    carpeta Convenios. makeCopy no necesita el Servicio Avanzado.
+    docId = DriveApp.getFileById(CONVENIO_TEMPLATE_ID)
+      .makeCopy('tmp_convenio_' + Date.now(), DriveApp.getFolderById(CONVENIOS_FOLDER))
+      .getId();
+
+    // 2. Reemplazar los marcadores de texto.
+    const doc  = DocumentApp.openById(docId);
+    const body = doc.getBody();
+    const reemplazos = [
+      ['{{fecha}}',           d.fecha],
+      ['{{razonsocial}}',     d.razonsocial],
+      ['{{cuit}}',            d.cuit],
+      ['{{nombrecompleto}}',  d.nombrecompleto],
+      ['{{dni}}',             d.dni],
+      ['{{rol}}',             d.rol],
+      ['{{domicilio}}',       d.domicilio],
+      ['{{direccion}}',       d.domicilio],   // domicilio del Productor (clausula SEPTIMA)
+      ['{{hastotales}}',      d.hastotales],
+      ['{{provincia}}',       d.provincia],
+      ['{{departamento}}',    d.departamento],
+      ['{{coordenadas}}',     d.coordenadas],
+      ['{{establecimiento}}', d.establecimiento],
+      ['{{kilos}}',           d.kilos],
+      ['{{variedad}}',        d.variedad],
+      ['{{plazo}}',           d.plazo],
+      ['{{comision}}',        d.comision]
+    ];
+    reemplazos.forEach(function(par) {
+      body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
+    });
+
+    // 3. {{imagen}} (Anexo I): defensivo. Si la imagen falla, se borra el
+    //    marcador y se sigue, para no perder el resto del convenio.
+    try {
+      if (d.imagen_base64) {
+        const imgBlob = Utilities.newBlob(Utilities.base64Decode(d.imagen_base64), 'image/png', 'mapa.png');
+        insertarImagenEnMarcador(body, '{{imagen}}', imgBlob);
+      } else {
+        body.replaceText(escaparRegex('{{imagen}}'), '');
+      }
+    } catch (imgErr) {
+      body.replaceText(escaparRegex('{{imagen}}'), '');
+    }
+
+    doc.saveAndClose();
+
+    // 4. Exportar a PDF y grabarlo en la carpeta Convenios.
+    const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
+    const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
+    const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
+
+    // 5. Descartar el Google Doc temporal (queda solo el PDF).
+    DriveApp.getFileById(docId).setTrashed(true);
+
+    return { url: file.getUrl(), nombre: nombre };
+  } catch (err) {
+    if (docId) { try { DriveApp.getFileById(docId).setTrashed(true); } catch (limpErr) {} }
+    throw err;
   }
 }
 
@@ -271,6 +273,28 @@ function doGet(e) {
     const nombres = [];
     while (archivos.hasNext()) nombres.push(archivos.next().getName());
     return ContentService.createTextOutput(JSON.stringify(nombres)).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // DIAGNÓSTICO: corre la generación del convenio con datos dummy y devuelve el
+  // resultado (o el error completo) en texto legible en el navegador. Sirve
+  // para ver el error real, que con no-cors el navegador no puede leer del POST.
+  // Crea un PDF de prueba "ZZZ_TEST_borrar.pdf" en la carpeta Convenios.
+  if (action === 'probarConvenio') {
+    try {
+      const r = generarConvenioPDF_({
+        fecha:'25 de junio de 2026', razonsocial:'CLIENTE TEST', cuit:'20-12345678-9',
+        nombrecompleto:'Juan Test', dni:'12345678', rol:'Apoderado', domicilio:'Calle Falsa 123',
+        hastotales:'100', provincia:'Buenos Aires', departamento:'Test', coordenadas:'-34.5, -60.0',
+        establecimiento:'Campo Test', kilos:'6000', variedad:'K46C25', plazo:'120 dias', comision:'2',
+        nombre_archivo:'ZZZ_TEST_borrar'
+      });
+      return ContentService.createTextOutput(JSON.stringify({status:'ok', resultado:r}, null, 2))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status:'error', message: err.message || String(err), stack: err.stack || ''
+      }, null, 2)).setMimeType(ContentService.MimeType.JSON);
+    }
   }
 
   const ss = SpreadsheetApp.openById(SHEET_ID);
