@@ -131,61 +131,72 @@ function doPost(e) {
     // para convertir el .docx a Google Doc y poder reemplazar el texto.
     if (payload.action === 'generarConvenio') {
       const d = payload.data;
+      let docId = null;
+      try {
+        // 1. Convertir la plantilla .docx a un Google Doc temporal en la
+        //    carpeta Convenios (soporta el Servicio Avanzado de Drive v2 y v3).
+        docId = copiarPlantillaComoDoc_();
 
-      // 1. Copiar la plantilla .docx convirtiéndola a un Google Doc temporal.
-      const copia = Drive.Files.copy(
-        { title: 'tmp_convenio_' + Date.now(), mimeType: 'application/vnd.google-apps.document' },
-        CONVENIO_TEMPLATE_ID
-      );
-      const docId = copia.id;
+        // 2. Reemplazar los marcadores de texto.
+        const doc  = DocumentApp.openById(docId);
+        const body = doc.getBody();
+        const reemplazos = [
+          ['{{fecha}}',           d.fecha],
+          ['{{razonsocial}}',     d.razonsocial],
+          ['{{cuit}}',            d.cuit],
+          ['{{nombrecompleto}}',  d.nombrecompleto],
+          ['{{dni}}',             d.dni],
+          ['{{rol}}',             d.rol],
+          ['{{domicilio}}',       d.domicilio],
+          ['{{direccion}}',       d.domicilio],   // domicilio del Productor (clausula SEPTIMA)
+          ['{{hastotales}}',      d.hastotales],
+          ['{{provincia}}',       d.provincia],
+          ['{{departamento}}',    d.departamento],
+          ['{{coordenadas}}',     d.coordenadas],
+          ['{{establecimiento}}', d.establecimiento],
+          ['{{kilos}}',           d.kilos],
+          ['{{variedad}}',        d.variedad],
+          ['{{plazo}}',           d.plazo],
+          ['{{comision}}',        d.comision]
+        ];
+        reemplazos.forEach(function(par) {
+          body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
+        });
 
-      // 2. Reemplazar los marcadores de texto ({{imagen}} se procesa aparte,
-      //    más abajo, porque inserta una imagen y no texto).
-      const doc  = DocumentApp.openById(docId);
-      const body = doc.getBody();
-      const reemplazos = [
-        ['{{fecha}}',           d.fecha],
-        ['{{razonsocial}}',     d.razonsocial],
-        ['{{cuit}}',            d.cuit],
-        ['{{nombrecompleto}}',  d.nombrecompleto],
-        ['{{dni}}',             d.dni],
-        ['{{rol}}',             d.rol],
-        ['{{domicilio}}',       d.domicilio],
-        ['{{hastotales}}',      d.hastotales],
-        ['{{provincia}}',       d.provincia],
-        ['{{departamento}}',    d.departamento],
-        ['{{coordenadas}}',     d.coordenadas],
-        ['{{establecimiento}}', d.establecimiento],
-        ['{{kilos}}',           d.kilos],
-        ['{{variedad}}',        d.variedad],
-        ['{{plazo}}',           d.plazo],
-        ['{{comision}}',        d.comision]
-      ];
-      reemplazos.forEach(function(par) {
-        body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
-      });
+        // 3. {{imagen}} (Anexo I): se inserta la captura del mapa escalada a
+        //    15 cm. DEFENSIVO: si la imagen falla por cualquier motivo, se
+        //    borra el marcador y se sigue, para no perder el resto del
+        //    convenio (este era el bug: sin try/catch, un error acá impedía
+        //    el saveAndClose y se perdían todos los reemplazos de texto).
+        try {
+          if (d.imagen_base64) {
+            const imgBlob = Utilities.newBlob(Utilities.base64Decode(d.imagen_base64), 'image/png', 'mapa.png');
+            insertarImagenEnMarcador(body, '{{imagen}}', imgBlob);
+          } else {
+            body.replaceText(escaparRegex('{{imagen}}'), '');
+          }
+        } catch (imgErr) {
+          body.replaceText(escaparRegex('{{imagen}}'), '');
+        }
 
-      // {{imagen}}: captura del mapa (Anexo I). Si vino la imagen, se inserta
-      // escalada a 15 cm de ancho; si no, se borra el marcador para no dejar
-      // el texto crudo en el PDF.
-      if (d.imagen_base64) {
-        const imgBlob = Utilities.newBlob(Utilities.base64Decode(d.imagen_base64), 'image/png', 'mapa.png');
-        insertarImagenEnMarcador(body, '{{imagen}}', imgBlob);
-      } else {
-        body.replaceText(escaparRegex('{{imagen}}'), '');
+        doc.saveAndClose();
+
+        // 4. Exportar a PDF y grabarlo en la carpeta Convenios.
+        const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
+        const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
+        const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
+
+        // 5. Descartar el Google Doc temporal (queda solo el PDF).
+        DriveApp.getFileById(docId).setTrashed(true);
+
+        return ContentService
+          .createTextOutput(JSON.stringify({status:'ok', url:file.getUrl(), nombre:nombre}))
+          .setMimeType(ContentService.MimeType.JSON);
+      } catch (convErr) {
+        // Pase lo que pase, no dejar el Doc temporal colgado en Drive.
+        if (docId) { try { DriveApp.getFileById(docId).setTrashed(true); } catch (limpErr) {} }
+        throw convErr;
       }
-
-      doc.saveAndClose();
-
-      // 3. Exportar a PDF, grabarlo en la carpeta y descartar el Doc temporal.
-      const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
-      const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
-      const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
-      DriveApp.getFileById(docId).setTrashed(true);
-
-      return ContentService
-        .createTextOutput(JSON.stringify({status:'ok', url:file.getUrl(), nombre:nombre}))
-        .setMimeType(ContentService.MimeType.JSON);
     }
 
     return ContentService
@@ -199,6 +210,23 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Convierte la plantilla .docx a un Google Doc temporal (en la carpeta
+// Convenios) y devuelve su id. Soporta el Servicio Avanzado de Drive tanto en
+// v2 (usa "title" y parents [{id}]) como en v3 (usa "name" y parents [id]).
+// La conversión la dispara el mimeType de destino (google-apps.document).
+function copiarPlantillaComoDoc_() {
+  if (typeof Drive === 'undefined' || !Drive.Files) {
+    throw new Error('Falta habilitar el Servicio Avanzado "Drive" (Editor → Servicios → Drive API).');
+  }
+  const titulo = 'tmp_convenio_' + Date.now();
+  const tipoDoc = 'application/vnd.google-apps.document';
+  if (Drive.Files.insert) { // Drive API v2
+    return Drive.Files.copy({ title: titulo, mimeType: tipoDoc, parents: [{ id: CONVENIOS_FOLDER }] }, CONVENIO_TEMPLATE_ID).id;
+  }
+  // Drive API v3
+  return Drive.Files.copy({ name: titulo, mimeType: tipoDoc, parents: [CONVENIOS_FOLDER] }, CONVENIO_TEMPLATE_ID).id;
 }
 
 // Escapa los caracteres especiales de regex de un marcador (las llaves {{ }}
