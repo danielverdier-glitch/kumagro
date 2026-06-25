@@ -139,8 +139,8 @@ function doPost(e) {
       );
       const docId = copia.id;
 
-      // 2. Reemplazar los marcadores. {{imagen}} queda vacío por ahora (el
-      //    Anexo I con el polígono georreferenciado se agrega más adelante).
+      // 2. Reemplazar los marcadores de texto ({{imagen}} se procesa aparte,
+      //    más abajo, porque inserta una imagen y no texto).
       const doc  = DocumentApp.openById(docId);
       const body = doc.getBody();
       const reemplazos = [
