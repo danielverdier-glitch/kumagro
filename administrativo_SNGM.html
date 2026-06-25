@@ -232,6 +232,8 @@
 // ════════════════════════════════════════════════════════════
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbybJDEJnle43k2ByKJ9xveln0_dxnKCgoN49__UsAudhH3FjS4nMhI1HqfaWeANMIOeUg/exec';
 const LS_KEY = 'kumagro_admin_convenios';
+// Prefijo de año para el nombre del PDF generado: 2026_<cliente>_<Semilla|UP>.
+const ANIO_CONVENIO = 2026;
 
 let allLotes = [];
 let allVisitas = [];
@@ -377,6 +379,17 @@ async function asegurarSemillaUpPorDefecto() {
 // defecto (ver asegurarSemillaUpPorDefecto, que además graba ese valor).
 function semillaUpDe(ultima) {
   return (ultima && ultima.semilla_up) ? ultima.semilla_up : 'Semilla';
+}
+
+// Tipo de convenio del cliente para el nombre del archivo. Junta los tipos
+// (Semilla / UP) de todos sus lotes: si son del mismo tipo da "Semilla" o
+// "UP"; si están mezclados da "Semilla_UP".
+function tipoSemillaUpCliente(cliente) {
+  const tipos = new Set();
+  lotesFiltrados().filter(l => l.productor === cliente).forEach(l => {
+    tipos.add(semillaUpDe(ultimaPorLote[l.id_lote] || null));
+  });
+  return tipos.size ? [...tipos].sort().join('_') : 'Semilla';
 }
 
 // ─── AGRUPAR POR CLIENTE > ESTABLECIMIENTO ────────────────
@@ -676,56 +689,60 @@ function confirmarGenerarConvenio() {
     variedades: variedadesKilos
   };
 
+  // El convenio se redacta para UN establecimiento: se usa el PRIMERO de la
+  // lista del productor (la lista viene ordenada alfabéticamente) para
+  // provincia / departamento / coordenadas / establecimiento. Las hectáreas,
+  // en cambio, son el TOTAL del productor (marcador {{hastotales}}).
+  const primer = establecimientos[0] || {};
   const totalHas = establecimientos.reduce((s,e)=>s+e.has,0);
-  const tablaEstablecimientos = establecimientos.map(e =>
-    `- ${e.nombre} (${e.partido}, ${e.provincia}): ${e.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` +
-    (!isNaN(e.lat) && !isNaN(e.lng) ? ` · centroide ${e.lat.toFixed(5)}, ${e.lng.toFixed(5)}` : '')
-  ).join('\n');
-  const tablaVariedades = variedades.map(v =>
-    `- ${v.variedad}: ${v.has.toLocaleString('es-AR',{maximumFractionDigits:1})} ha · ${variedadesKilos[v.variedad].toLocaleString('es-AR')} kg de semilla`
-  ).join('\n');
+  const coordenadas = (!isNaN(primer.lat) && !isNaN(primer.lng))
+    ? primer.lat.toFixed(5) + ', ' + primer.lng.toFixed(5) : '';
 
-  const contenido =
-`CONVENIO SNGM (borrador)
+  // La plantilla tiene un único {{variedad}} y {{kilos}}: se listan todas las
+  // variedades del productor y se suma el total de kilos cargados.
+  const variedadTexto = variedades.map(v => v.variedad).join(', ');
+  const kilosTotal = Object.values(variedadesKilos).reduce((s,k)=>s+k,0);
 
-Fecha: ${formConvenio.fecha}
-Razón social: ${formConvenio.razonSocial}
-CUIT: ${formConvenio.cuit || '—'}
-Nombre completo: ${formConvenio.nombreCompleto || '—'}
-DNI: ${formConvenio.dni || '—'}
-Rol: ${formConvenio.rol || '—'}
-Domicilio: ${formConvenio.domicilio || '—'}
+  const tipo = tipoSemillaUpCliente(cliente);          // Semilla | UP | Semilla_UP
+  const nombreArchivo = `${ANIO_CONVENIO}_${cliente}_${tipo}`;
 
-Establecimientos (total ${totalHas.toLocaleString('es-AR',{maximumFractionDigits:1})} ha):
-${tablaEstablecimientos}
+  // Marcadores del .docx → valores. Las claves coinciden con los {{...}} de la
+  // plantilla (sin las llaves) que reemplaza el Apps Script.
+  const datos = {
+    fecha:           formConvenio.fecha,
+    razonsocial:     formConvenio.razonSocial,
+    cuit:            formConvenio.cuit,
+    nombrecompleto:  formConvenio.nombreCompleto,
+    dni:             formConvenio.dni,
+    rol:             formConvenio.rol,
+    domicilio:       formConvenio.domicilio,
+    hastotales:      totalHas.toLocaleString('es-AR',{maximumFractionDigits:1}),
+    provincia:       primer.provincia || '',
+    departamento:    primer.partido || '',
+    coordenadas:     coordenadas,
+    establecimiento: primer.nombre || '',
+    kilos:           kilosTotal.toLocaleString('es-AR'),
+    variedad:        variedadTexto,
+    plazo:           `${formConvenio.plazo} días`,
+    comision:        formConvenio.comision,
+    nombre_archivo:  nombreArchivo
+  };
 
-Variedad y kilos de semilla:
-${tablaVariedades}
-
-Campaña: ${formConvenio.campana}
-Plazo máximo de entrega: ${formConvenio.plazo} días
-Comisión de comercialización: ${formConvenio.comision}%
-
-(La imagen georreferenciada del polígono se ve en el formulario, no se incluye en este archivo de texto)
-
-Generado: ${new Date().toLocaleString('es-AR')}
-`;
-  const blob = new Blob([contenido], {type:'text/plain'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `convenio_${cliente}.txt`.replace(/\s+/g,'_');
-  a.click();
-  URL.revokeObjectURL(url);
+  fetch(APPS_SCRIPT_URL, {
+    method:'POST', mode:'no-cors',
+    body: JSON.stringify({ action:'generarConvenio', data: datos })
+  }).then(() => {
+    showToast('Convenio PDF generado en Drive: ' + nombreArchivo + '.pdf');
+  }).catch(() => {
+    showToast('No se pudo generar el convenio (error de red)', true);
+  });
 
   const e = estadoDe(cliente);
-  const yaEstaba = e.generado;
   e.generado = true;
   e.formConvenio = formConvenio;
   guardarEstado();
   cerrarModalConvenio();
   renderTabla();
-  showToast(yaEstaba ? 'Convenio regenerado' : 'Borrador de convenio descargado');
 }
 
 // Simula el envío del convenio por email. Todavía no dispara un email real:

@@ -2,6 +2,13 @@ const SHEET_ID     = '1_IslJKixdyIbuYZf88pEdz3kXqDfDCWMoHENSDq3Mf4';
 const KMZ_FOLDER   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
 const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive para fotos de visitas
 
+// Generación de convenios (administrativo_SNGM.html → action 'generarConvenio').
+// La plantilla es un .docx con marcadores {{...}}; el resultado se graba como
+// PDF en la carpeta del programa. CONVENIOS_FOLDER es la carpeta "Programa SNGM"
+// (la misma donde están la plantilla y el Sheet).
+const CONVENIO_TEMPLATE_ID = '1IBgIwaHPRx0JRHPwitFRlzredqLUeCk1'; // Convenio_semilla.docx
+const CONVENIOS_FOLDER     = '1WYLlbUGBXeU3sTOziLwKLtf8LBkKqS6c'; // carpeta "Programa SNGM"
+
 function doPost(e) {
   // Varios usuarios pueden guardar filas casi al mismo tiempo (ej. carga
   // masiva, varios clicks rápidos en "Guardar"). Sin lock, dos ejecuciones
@@ -114,6 +121,63 @@ function doPost(e) {
       sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
     }
 
+    // Usado por administrativo_SNGM.html: toma la plantilla del convenio
+    // (Convenio_semilla.docx), reemplaza los marcadores {{...}} con los datos
+    // del formulario y graba el resultado COMO PDF en la carpeta del programa.
+    // El nombre del archivo lo arma el cliente: 2026_<cliente>_<Semilla|UP>.
+    //
+    // IMPORTANTE: requiere el Servicio Avanzado "Drive" habilitado en el
+    // proyecto de Apps Script (Editor → Servicios → "Drive API"), que se usa
+    // para convertir el .docx a Google Doc y poder reemplazar el texto.
+    if (payload.action === 'generarConvenio') {
+      const d = payload.data;
+
+      // 1. Copiar la plantilla .docx convirtiéndola a un Google Doc temporal.
+      const copia = Drive.Files.copy(
+        { title: 'tmp_convenio_' + Date.now(), mimeType: 'application/vnd.google-apps.document' },
+        CONVENIO_TEMPLATE_ID
+      );
+      const docId = copia.id;
+
+      // 2. Reemplazar los marcadores. {{imagen}} queda vacío por ahora (el
+      //    Anexo I con el polígono georreferenciado se agrega más adelante).
+      const doc  = DocumentApp.openById(docId);
+      const body = doc.getBody();
+      const reemplazos = [
+        ['{{fecha}}',           d.fecha],
+        ['{{razonsocial}}',     d.razonsocial],
+        ['{{cuit}}',            d.cuit],
+        ['{{nombrecompleto}}',  d.nombrecompleto],
+        ['{{dni}}',             d.dni],
+        ['{{rol}}',             d.rol],
+        ['{{domicilio}}',       d.domicilio],
+        ['{{hastotales}}',      d.hastotales],
+        ['{{provincia}}',       d.provincia],
+        ['{{departamento}}',    d.departamento],
+        ['{{coordenadas}}',     d.coordenadas],
+        ['{{establecimiento}}', d.establecimiento],
+        ['{{kilos}}',           d.kilos],
+        ['{{variedad}}',        d.variedad],
+        ['{{plazo}}',           d.plazo],
+        ['{{comision}}',        d.comision],
+        ['{{imagen}}',          '']
+      ];
+      reemplazos.forEach(function(par) {
+        body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
+      });
+      doc.saveAndClose();
+
+      // 3. Exportar a PDF, grabarlo en la carpeta y descartar el Doc temporal.
+      const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
+      const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
+      const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
+      DriveApp.getFileById(docId).setTrashed(true);
+
+      return ContentService
+        .createTextOutput(JSON.stringify({status:'ok', url:file.getUrl(), nombre:nombre}))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     return ContentService
       .createTextOutput(JSON.stringify({status:'ok'}))
       .setMimeType(ContentService.MimeType.JSON);
@@ -125,6 +189,17 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Escapa los caracteres especiales de regex de un marcador (las llaves {{ }}
+// son metacaracteres) para que replaceText lo trate como texto literal.
+function escaparRegex(texto) {
+  return texto.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Limpia un nombre de archivo de caracteres no válidos en Drive.
+function sanitizarNombre(nombre) {
+  return String(nombre).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_');
 }
 
 // Devuelve los encabezados de la fila 1 normalizados a string. Las columnas
