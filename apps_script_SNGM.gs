@@ -3,10 +3,10 @@ const KMZ_FOLDER   = '1Kq53DGEb9G--LODHemEP0yca0MyDaZxP';
 const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive para fotos de visitas
 
 // Generación de convenios (administrativo_SNGM.html → action 'generarConvenio').
-// La plantilla es un .docx con marcadores {{...}}; el resultado se graba como
-// PDF en la carpeta del programa. CONVENIOS_FOLDER es la carpeta "Programa SNGM"
-// (la misma donde están la plantilla y el Sheet).
-const CONVENIO_TEMPLATE_ID = '1IBgIwaHPRx0JRHPwitFRlzredqLUeCk1'; // Convenio_semilla.docx
+// La plantilla es un Google Doc NATIVO con marcadores {{...}}; el resultado se
+// graba como PDF en la subcarpeta Convenios. Al ser Doc nativo se copia con
+// makeCopy (no hace falta el Servicio Avanzado de Drive ni convertir nada).
+const CONVENIO_TEMPLATE_ID = '1ghudeYpGsSd6Ccs76F0TUbGoBfK9Uk1SjT_Z-pIDsL0'; // Convenio_semilla (Google Doc)
 const CONVENIOS_FOLDER     = '19-WOikRaRQmKh2rX1i2ZCzRgDPc66BMB'; // subcarpeta "Convenios" dentro de "Programa SNGM"
 
 function doPost(e) {
@@ -122,20 +122,18 @@ function doPost(e) {
     }
 
     // Usado por administrativo_SNGM.html: toma la plantilla del convenio
-    // (Convenio_semilla.docx), reemplaza los marcadores {{...}} con los datos
-    // del formulario y graba el resultado COMO PDF en la carpeta del programa.
+    // (Google Doc), reemplaza los marcadores {{...}} con los datos del
+    // formulario y graba el resultado COMO PDF en la subcarpeta Convenios.
     // El nombre del archivo lo arma el cliente: 2026_<cliente>_<Semilla|UP>.
-    //
-    // IMPORTANTE: requiere el Servicio Avanzado "Drive" habilitado en el
-    // proyecto de Apps Script (Editor → Servicios → "Drive API"), que se usa
-    // para convertir el .docx a Google Doc y poder reemplazar el texto.
     if (payload.action === 'generarConvenio') {
       const d = payload.data;
       let docId = null;
       try {
-        // 1. Convertir la plantilla .docx a un Google Doc temporal en la
-        //    carpeta Convenios (soporta el Servicio Avanzado de Drive v2 y v3).
-        docId = copiarPlantillaComoDoc_();
+        // 1. Copiar la plantilla (Google Doc nativo) a un Doc temporal en la
+        //    carpeta Convenios. makeCopy no necesita el Servicio Avanzado.
+        docId = DriveApp.getFileById(CONVENIO_TEMPLATE_ID)
+          .makeCopy('tmp_convenio_' + Date.now(), DriveApp.getFolderById(CONVENIOS_FOLDER))
+          .getId();
 
         // 2. Reemplazar los marcadores de texto.
         const doc  = DocumentApp.openById(docId);
@@ -210,23 +208,6 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
-}
-
-// Convierte la plantilla .docx a un Google Doc temporal (en la carpeta
-// Convenios) y devuelve su id. Soporta el Servicio Avanzado de Drive tanto en
-// v2 (usa "title" y parents [{id}]) como en v3 (usa "name" y parents [id]).
-// La conversión la dispara el mimeType de destino (google-apps.document).
-function copiarPlantillaComoDoc_() {
-  if (typeof Drive === 'undefined' || !Drive.Files) {
-    throw new Error('Falta habilitar el Servicio Avanzado "Drive" (Editor → Servicios → Drive API).');
-  }
-  const titulo = 'tmp_convenio_' + Date.now();
-  const tipoDoc = 'application/vnd.google-apps.document';
-  if (Drive.Files.insert) { // Drive API v2
-    return Drive.Files.copy({ title: titulo, mimeType: tipoDoc, parents: [{ id: CONVENIOS_FOLDER }] }, CONVENIO_TEMPLATE_ID).id;
-  }
-  // Drive API v3
-  return Drive.Files.copy({ name: titulo, mimeType: tipoDoc, parents: [CONVENIOS_FOLDER] }, CONVENIO_TEMPLATE_ID).id;
 }
 
 // Escapa los caracteres especiales de regex de un marcador (las llaves {{ }}
