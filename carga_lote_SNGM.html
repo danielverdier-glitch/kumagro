@@ -267,6 +267,7 @@ let activeTab       = 'map';
 let map1=null, map2=null, mapResumen=null;
 let drawnItems=null;
 let lotesAgregados  = [];
+let lotesExistentes = []; // lotes ya cargados en la base (Sheet), para evitar duplicados
 let resumenLayers   = [];
 
 // ─── COLOR POR CAMPAÑA / PINES EN ZOOM CHICO ──────────────
@@ -633,6 +634,20 @@ async function agregarLote() {
   const area     = calcArea(coords);
   const campana  = calcCampana(fechaSiembra);
 
+  // Verificar contra la BASE: que no exista ya ese lote (productor + campo +
+  // lote) para esa campaña, aunque se haya cargado en otra sesión.
+  const yaEnBase = lotesExistentes.some(l =>
+    claveLote(l.productor, l.nombre_campo, l.lote, l.campana) ===
+    claveLote(productor, nombreCampo, lote, campana)
+  );
+  if (yaEnBase) {
+    showToast('Ya existe el lote "'+lote+'" del campo "'+nombreCampo+'" ('+productor+') en la campaña '+campana+'. No se carga de nuevo.', true);
+    return;
+  }
+  // Reservar la clave en memoria para que un segundo intento (mismo o por
+  // doble click) en esta sesión también quede bloqueado.
+  lotesExistentes.push({ productor, nombre_campo:nombreCampo, lote, campana });
+
   showToast('Obteniendo ubicación oficial...','info');
   const {provincia,departamento} = await getProvinciaDepto(centroid.lat, centroid.lng);
   const region = clasificarRegion(provincia, departamento);
@@ -676,6 +691,23 @@ async function agregarLote() {
   } else {
     showToast('✓ '+nombreCampo+(lote?' · '+lote:'')+' guardado en Sheet y Drive');
   }
+}
+
+// Trae los lotes ya cargados en la base para verificar duplicados antes de
+// guardar uno nuevo. Se llama al abrir la página.
+async function cargarLotesExistentes() {
+  if (APPS_SCRIPT_URL === 'TU_APPS_SCRIPT_URL_AQUI') return;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=getLotes');
+    const data = await res.json();
+    lotesExistentes = Array.isArray(data) ? data : [];
+  } catch(e) { lotesExistentes = []; }
+}
+
+// Clave única de un lote: productor + campo + lote + campaña (normalizada).
+function claveLote(productor, campo, lote, campana) {
+  return [productor, campo, lote].map(s => String(s||'').trim().toLowerCase()).join('||')
+    + '||' + String(campana||'').trim().toLowerCase();
 }
 
 function calcCampana(fechaSiembraStr) {
@@ -889,6 +921,7 @@ function showToast(msg,error=false,info=false){
 // ─── INIT ────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded',()=>{
   checkConfig();
+  cargarLotesExistentes();
   setTimeout(initMap1,100);
   setTimeout(initMapResumen,200);
   document.getElementById('variedad').addEventListener('change',function(){

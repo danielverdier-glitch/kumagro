@@ -43,6 +43,25 @@ function doPost(e) {
           'region','siembra']);
       }
 
+      // Anti-duplicado: no guardar si ya existe el mismo lote (productor +
+      // nombre_campo + lote + campana) en la base. Como doPost corre bajo
+      // LockService, este chequeo es atómico y cubre el caso de dos sesiones
+      // que intentan cargar el mismo lote. Si es duplicado, no agrega la fila.
+      const filas = sheet.getDataRange().getValues();
+      const cab   = filas[0];
+      const iP = cab.indexOf('productor'), iC = cab.indexOf('nombre_campo'),
+            iL = cab.indexOf('lote'), iK = cab.indexOf('campana');
+      const norm = v => String(v == null ? '' : v).trim().toLowerCase();
+      const duplicado = filas.slice(1).some(r =>
+        norm(r[iP]) === norm(d.productor) && norm(r[iC]) === norm(d.nombre_campo) &&
+        norm(r[iL]) === norm(d.lote)      && norm(r[iK]) === norm(d.campana)
+      );
+      if (duplicado) {
+        return ContentService
+          .createTextOutput(JSON.stringify({status:'duplicado'}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
       sheet.appendRow([
         d.id_lote, d.productor, d.nombre_campo, d.lote||'', d.variedad,
         d.fecha_siembra_estimada, d.campana, d.provincia, d.departamento, d.area_ha,
@@ -209,9 +228,16 @@ function generarConvenioPDF_(d) {
     doc.saveAndClose();
 
     // 4. Exportar a PDF y grabarlo en la carpeta Convenios.
-    const nombre = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
-    const pdf    = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
-    const file   = DriveApp.getFolderById(CONVENIOS_FOLDER).createFile(pdf);
+    const nombre  = sanitizarNombre(d.nombre_archivo || ('convenio_' + Date.now())) + '.pdf';
+    const carpeta = DriveApp.getFolderById(CONVENIOS_FOLDER);
+
+    // Sobrescribir: si ya hay un convenio con el mismo nombre (regenerado),
+    // se manda a la papelera el/los anteriores para no dejar duplicados.
+    const previos = carpeta.getFilesByName(nombre);
+    while (previos.hasNext()) previos.next().setTrashed(true);
+
+    const pdf  = DriveApp.getFileById(docId).getAs('application/pdf').setName(nombre);
+    const file = carpeta.createFile(pdf);
 
     // 5. Descartar el Google Doc temporal (queda solo el PDF).
     DriveApp.getFileById(docId).setTrashed(true);
