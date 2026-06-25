@@ -7,7 +7,7 @@ const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive pa
 // PDF en la carpeta del programa. CONVENIOS_FOLDER es la carpeta "Programa SNGM"
 // (la misma donde están la plantilla y el Sheet).
 const CONVENIO_TEMPLATE_ID = '1IBgIwaHPRx0JRHPwitFRlzredqLUeCk1'; // Convenio_semilla.docx
-const CONVENIOS_FOLDER     = '1WYLlbUGBXeU3sTOziLwKLtf8LBkKqS6c'; // carpeta "Programa SNGM"
+const CONVENIOS_FOLDER     = '19-WOikRaRQmKh2rX1i2ZCzRgDPc66BMB'; // subcarpeta "Convenios" dentro de "Programa SNGM"
 
 function doPost(e) {
   // Varios usuarios pueden guardar filas casi al mismo tiempo (ej. carga
@@ -253,6 +253,17 @@ function headersComoTexto(sheet) {
 // cada semana cargada, con el encabezado siendo la fecha de inicio de semana.
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || 'getLotes';
+
+  // Lista los nombres de archivo de los convenios ya generados (subcarpeta
+  // "Convenios"). administrativo_SNGM.html lo usa para saber qué clientes ya
+  // tienen convenio y mostrar "Regenerar" en vez de "Generar".
+  if (action === 'getConvenios') {
+    const archivos = DriveApp.getFolderById(CONVENIOS_FOLDER).getFiles();
+    const nombres = [];
+    while (archivos.hasNext()) nombres.push(archivos.next().getName());
+    return ContentService.createTextOutput(JSON.stringify(nombres)).setMimeType(ContentService.MimeType.JSON);
+  }
+
   const ss = SpreadsheetApp.openById(SHEET_ID);
   const nombresHoja = {
     getVisitas: 'Visitas',

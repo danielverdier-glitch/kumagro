@@ -239,6 +239,10 @@ let allLotes = [];
 let allVisitas = [];
 let ultimaPorLote = {};
 let estado = {}; // { cliente: { email, generado, enviado, firmado } }
+// Nombres de los PDF que ya existen en la subcarpeta "Convenios" de Drive.
+// Es la fuente de verdad de "convenio generado": el botón muestra "Regenerar"
+// solo si acá hay un archivo 2026_<cliente>_*.pdf para ese cliente.
+let conveniosExistentes = new Set();
 
 function escAttr(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
 function aFechaISO(v) {
@@ -312,22 +316,42 @@ function estadoConvenioDe(id) {
   const e = estadoDe(id);
   if (e.firmado) return 'firmado';
   if (e.enviado) return 'sin_firmar';
-  if (e.generado) return 'sin_enviar';
+  if (tieneConvenio(id)) return 'sin_enviar';
   return 'sin_generar';
+}
+
+// Replica el saneo de nombre de archivo del Apps Script (sanitizarNombre):
+// quita caracteres inválidos de Drive y pasa los espacios a "_".
+function sanitizarArchivo(nombre) {
+  return String(nombre).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_');
+}
+
+// ¿El cliente ya tiene un convenio generado? Se verifica contra los archivos
+// reales de la subcarpeta "Convenios" de Drive (no contra localStorage):
+// existe si hay algún PDF cuyo nombre empieza con 2026_<cliente>_.
+function tieneConvenio(cliente) {
+  const prefijo = sanitizarArchivo(`${ANIO_CONVENIO}_${cliente}_`).toLowerCase();
+  for (const nombre of conveniosExistentes) {
+    if (nombre.startsWith(prefijo)) return true;
+  }
+  return false;
 }
 
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
   cargarEstado();
   try {
-    const [resLotes, resVisitas] = await Promise.all([
+    const [resLotes, resVisitas, resConvenios] = await Promise.all([
       fetch(APPS_SCRIPT_URL + '?action=getLotes'),
-      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
+      fetch(APPS_SCRIPT_URL + '?action=getConvenios')
     ]);
     const data    = await resLotes.json();
     const visitas = await resVisitas.json();
+    const convenios = await resConvenios.json();
     allLotes   = Array.isArray(data) ? data : [];
     allVisitas = Array.isArray(visitas) ? visitas : [];
+    conveniosExistentes = new Set((Array.isArray(convenios) ? convenios : []).map(n => String(n).toLowerCase()));
     document.getElementById('loading-bar').style.display = 'none';
   } catch(e) {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
@@ -444,7 +468,7 @@ function filaHTML(cliente, est, esPrimeraDelCliente, esUltimaDelCliente) {
   const id = cliente;
   const e = estadoDe(id);
   const acciones = esUltimaDelCliente ? `
-    <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(id)}')">${e.generado ? 'Regenerar' : 'Generar'}</button></td>
+    <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(id)}')">${tieneConvenio(id) ? 'Regenerar' : 'Generar'}</button></td>
     <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
@@ -491,7 +515,7 @@ function actualizarKpis(ids) {
   let generados=0, enviados=0, firmados=0;
   ids.forEach(id => {
     const e = estadoDe(id);
-    if (e.generado) generados++;
+    if (tieneConvenio(id)) generados++;
     if (e.enviado) enviados++;
     if (e.firmado) firmados++;
   });
@@ -758,9 +782,14 @@ async function confirmarGenerarConvenio() {
     showToast('No se pudo generar el convenio (error de red)', true);
   });
 
+  // El POST va con no-cors (no se puede leer la respuesta), así que asumimos
+  // que el PDF se va a crear y agregamos su nombre al set para que el botón
+  // pase a "Regenerar" sin esperar a recargar. En la próxima carga se verifica
+  // de verdad contra la carpeta de Drive.
+  conveniosExistentes.add((sanitizarArchivo(nombreArchivo) + '.pdf').toLowerCase());
+
   const e = estadoDe(cliente);
-  e.generado = true;
-  e.formConvenio = formConvenio;
+  e.formConvenio = formConvenio;   // se guarda para prellenar el formulario al regenerar
   guardarEstado();
   cerrarModalConvenio();
   renderTabla();
