@@ -27,6 +27,7 @@
   .nota-version{font-size:12px;color:var(--text-soft);background:var(--gh-gold-light);border:1px solid var(--gh-gold);border-radius:8px;padding:10px 14px;margin-bottom:20px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-1{display:grid;grid-template-columns:1fr;gap:16px}
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
   .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
   label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
@@ -92,7 +93,7 @@
 
   <div class="nota-version">
     ⚠ Primera versión: el botón "Generar" abre un formulario para completar/editar los datos del
-    convenio (fecha, razón social, CUIT, representante, rol, domicilio, campaña, plazo de entrega,
+    convenio (fecha, razón social, CUIT, nombre completo, DNI, rol, domicilio, campaña, plazo de entrega,
     comisión y kilos de semilla por variedad) y descarga un borrador de texto simple; pasa a decir
     "Regenerar" una vez generado, reabriendo el formulario con los últimos datos guardados.
     "Enviar" simula el envío (todavía no está conectado a un servicio de email real). Los estados
@@ -172,14 +173,26 @@
     <div class="modal-title">Generar convenio</div>
     <div class="modal-sub" id="conv-modal-sub">Cliente</div>
 
-    <h3>Datos del convenio</h3>
-    <div class="grid-2">
+    <div class="grid-1">
       <div><label>Fecha</label><input type="text" id="conv-fecha"></div>
+    </div>
+
+    <h3>Empresa</h3>
+    <div class="grid-2">
       <div><label>Razón social</label><input type="text" id="conv-razon-social"></div>
       <div><label>CUIT</label><input type="text" id="conv-cuit" placeholder="20-12345678-9"></div>
-      <div><label>Representante</label><input type="text" id="conv-representante"></div>
+    </div>
+
+    <h3>Representante</h3>
+    <div class="grid-2">
+      <div><label>Nombre completo</label><input type="text" id="conv-nombre-completo"></div>
+      <div><label>DNI</label><input type="text" id="conv-dni"></div>
       <div><label>Rol</label><input type="text" id="conv-rol" placeholder="Apoderado, presidente, etc."></div>
       <div><label>Domicilio</label><input type="text" id="conv-domicilio"></div>
+    </div>
+
+    <h3>Detalles comerciales</h3>
+    <div class="grid-2">
       <div><label>Campaña</label><input type="text" id="conv-campana"></div>
       <div><label>Plazo máximo de entrega (días)</label><input type="number" id="conv-plazo" min="0"></div>
       <div><label>Comisión de comercialización (%)</label><input type="number" id="conv-comision" min="0" step="0.1"></div>
@@ -556,7 +569,8 @@ function abrirModalConvenio(cliente) {
   document.getElementById('conv-fecha').value = datosPrevios.fecha || formatearFechaLarga(new Date());
   document.getElementById('conv-razon-social').value = datosPrevios.razonSocial || cliente;
   document.getElementById('conv-cuit').value = datosPrevios.cuit || '';
-  document.getElementById('conv-representante').value = datosPrevios.representante || '';
+  document.getElementById('conv-nombre-completo').value = datosPrevios.nombreCompleto || '';
+  document.getElementById('conv-dni').value = datosPrevios.dni || '';
   document.getElementById('conv-rol').value = datosPrevios.rol || '';
   document.getElementById('conv-domicilio').value = datosPrevios.domicilio || '';
   document.getElementById('conv-campana').value = datosPrevios.campana || campanaConvenioActual(new Date());
@@ -602,16 +616,32 @@ function renderMapaConvenio(establecimientos, cliente) {
     const has = (parseFloat(l.area_ha) || 0).toLocaleString('es-AR',{maximumFractionDigits:1});
     const etiqueta = `<strong>${l.nombre_campo||'—'}</strong><br>${has} ha · ${variedad}`;
     const poly = L.polygon(ll, { color:'#c23b3b', fillColor:'#c23b3b', fillOpacity:.45, weight:2 }).addTo(mapaConvenio);
-    poly.bindTooltip(etiqueta, { permanent:true, direction:'center', className:'conv-mapa-tooltip' });
-    poligonos.push(poly);
+    poligonos.push({ poly, etiqueta });
   });
 
   if (poligonos.length) {
-    mapaConvenio.fitBounds(L.featureGroup(poligonos).getBounds(), { padding:[20,20] });
+    mapaConvenio.fitBounds(L.featureGroup(poligonos.map(p=>p.poly)).getBounds(), { padding:[20,20] });
   } else {
     mapaConvenio.setView([-34.5,-63], 5);
   }
   mapaConvenio.invalidateSize();
+
+  // La leyenda va al costado del polígono; si el polígono ocupa casi toda
+  // la imagen visible no hay lugar al costado, así que se centra encima.
+  const tamañoMapa = mapaConvenio.getSize();
+  const areaMapa = tamañoMapa.x * tamañoMapa.y;
+  poligonos.forEach(({poly, etiqueta}) => {
+    const sw = mapaConvenio.latLngToContainerPoint(poly.getBounds().getSouthWest());
+    const ne = mapaConvenio.latLngToContainerPoint(poly.getBounds().getNorthEast());
+    const areaPoligono = Math.abs(ne.x - sw.x) * Math.abs(sw.y - ne.y);
+    const cubreTodo = areaMapa > 0 && (areaPoligono / areaMapa) > 0.6;
+    poly.bindTooltip(etiqueta, {
+      permanent:true,
+      direction: cubreTodo ? 'center' : 'right',
+      offset: cubreTodo ? [0,0] : [10,0],
+      className:'conv-mapa-tooltip'
+    });
+  });
 }
 
 function cerrarModalConvenio() {
@@ -636,7 +666,8 @@ function confirmarGenerarConvenio() {
     fecha: document.getElementById('conv-fecha').value.trim(),
     razonSocial: document.getElementById('conv-razon-social').value.trim(),
     cuit: document.getElementById('conv-cuit').value.trim(),
-    representante: document.getElementById('conv-representante').value.trim(),
+    nombreCompleto: document.getElementById('conv-nombre-completo').value.trim(),
+    dni: document.getElementById('conv-dni').value.trim(),
     rol: document.getElementById('conv-rol').value.trim(),
     domicilio: document.getElementById('conv-domicilio').value.trim(),
     campana: document.getElementById('conv-campana').value.trim(),
@@ -660,7 +691,8 @@ function confirmarGenerarConvenio() {
 Fecha: ${formConvenio.fecha}
 Razón social: ${formConvenio.razonSocial}
 CUIT: ${formConvenio.cuit || '—'}
-Representante: ${formConvenio.representante || '—'}
+Nombre completo: ${formConvenio.nombreCompleto || '—'}
+DNI: ${formConvenio.dni || '—'}
 Rol: ${formConvenio.rol || '—'}
 Domicilio: ${formConvenio.domicilio || '—'}
 
