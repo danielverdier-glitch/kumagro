@@ -159,12 +159,22 @@ function doPost(e) {
         ['{{kilos}}',           d.kilos],
         ['{{variedad}}',        d.variedad],
         ['{{plazo}}',           d.plazo],
-        ['{{comision}}',        d.comision],
-        ['{{imagen}}',          '']
+        ['{{comision}}',        d.comision]
       ];
       reemplazos.forEach(function(par) {
         body.replaceText(escaparRegex(par[0]), par[1] != null ? String(par[1]) : '');
       });
+
+      // {{imagen}}: captura del mapa (Anexo I). Si vino la imagen, se inserta
+      // escalada a 15 cm de ancho; si no, se borra el marcador para no dejar
+      // el texto crudo en el PDF.
+      if (d.imagen_base64) {
+        const imgBlob = Utilities.newBlob(Utilities.base64Decode(d.imagen_base64), 'image/png', 'mapa.png');
+        insertarImagenEnMarcador(body, '{{imagen}}', imgBlob);
+      } else {
+        body.replaceText(escaparRegex('{{imagen}}'), '');
+      }
+
       doc.saveAndClose();
 
       // 3. Exportar a PDF, grabarlo en la carpeta y descartar el Doc temporal.
@@ -200,6 +210,32 @@ function escaparRegex(texto) {
 // Limpia un nombre de archivo de caracteres no válidos en Drive.
 function sanitizarNombre(nombre) {
   return String(nombre).replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, '_');
+}
+
+// Reemplaza cada aparición de un marcador de texto por una imagen inline,
+// escalada a un ancho máximo de 15 cm conservando la proporción. Se vuelve a
+// buscar el marcador desde el principio en cada vuelta porque al borrar el
+// texto cambian los offsets; el while termina cuando ya no quedan marcadores.
+function insertarImagenEnMarcador(body, marcador, blob) {
+  const MAX_ANCHO_PT = 15 * 28.3465; // 15 cm en puntos (1 cm = 28.3465 pt)
+  let encontrado = body.findText(escaparRegex(marcador));
+  while (encontrado) {
+    const el = encontrado.getElement().asText();
+    el.deleteText(encontrado.getStartOffset(), encontrado.getEndOffsetInclusive());
+    const parrafo = el.getParent();
+    let imagen;
+    if (parrafo.getType() === DocumentApp.ElementType.LIST_ITEM) {
+      imagen = parrafo.asListItem().appendInlineImage(blob);
+    } else {
+      imagen = parrafo.asParagraph().appendInlineImage(blob);
+    }
+    const w = imagen.getWidth(), h = imagen.getHeight();
+    if (w > MAX_ANCHO_PT && w > 0) {
+      imagen.setHeight(Math.round(h * (MAX_ANCHO_PT / w)));
+      imagen.setWidth(Math.round(MAX_ANCHO_PT));
+    }
+    encontrado = body.findText(escaparRegex(marcador));
+  }
 }
 
 // Devuelve los encabezados de la fila 1 normalizados a string. Las columnas

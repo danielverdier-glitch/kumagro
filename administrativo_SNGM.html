@@ -616,7 +616,7 @@ function renderMapaConvenio(establecimientos, cliente) {
   if (mapaConvenio) { mapaConvenio.remove(); mapaConvenio = null; }
   mapaConvenio = L.map('conv-mapa', { attributionControl:false });
   L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { maxZoom:19 }).addTo(mapaConvenio);
+    { maxZoom:19, crossOrigin:true }).addTo(mapaConvenio);
 
   const poligonos = [];
   lotesFiltrados().filter(l => l.productor === cliente && l.poligono_geojson).forEach(l => {
@@ -657,13 +657,29 @@ function renderMapaConvenio(establecimientos, cliente) {
   });
 }
 
+// Captura el mapa del modal (tiles satelitales + polígonos + etiquetas) tal
+// como se ve y lo devuelve como PNG en base64 (sin el prefijo data:). Devuelve
+// '' si falla (ej. una tile sin CORS que "ensucia" el canvas) para que la
+// generación del convenio siga igual, solo sin la imagen.
+async function capturarMapaConvenio() {
+  const el = document.getElementById('conv-mapa');
+  if (!el || typeof html2canvas === 'undefined') return '';
+  if (mapaConvenio) mapaConvenio.invalidateSize();
+  try {
+    const canvas = await html2canvas(el, { useCORS:true, backgroundColor:null, scale:2, logging:false });
+    return canvas.toDataURL('image/png').split(',')[1] || '';
+  } catch(err) {
+    return '';
+  }
+}
+
 function cerrarModalConvenio() {
   document.getElementById('modal-convenio').classList.remove('show');
   if (mapaConvenio) { mapaConvenio.remove(); mapaConvenio = null; }
   clienteModalActual = null;
 }
 
-function confirmarGenerarConvenio() {
+async function confirmarGenerarConvenio() {
   const cliente = clienteModalActual;
   if (!cliente) return;
 
@@ -706,6 +722,10 @@ function confirmarGenerarConvenio() {
   const tipo = tipoSemillaUpCliente(cliente);          // Semilla | UP | Semilla_UP
   const nombreArchivo = `${ANIO_CONVENIO}_${cliente}_${tipo}`;
 
+  // Captura el mapa del modal para insertarlo en el marcador {{imagen}}.
+  showToast('Generando convenio…');
+  const imagenBase64 = await capturarMapaConvenio();
+
   // Marcadores del .docx → valores. Las claves coinciden con los {{...}} de la
   // plantilla (sin las llaves) que reemplaza el Apps Script.
   const datos = {
@@ -725,6 +745,7 @@ function confirmarGenerarConvenio() {
     variedad:        variedadTexto,
     plazo:           `${formConvenio.plazo} días`,
     comision:        formConvenio.comision,
+    imagen_base64:   imagenBase64,
     nombre_archivo:  nombreArchivo
   };
 
@@ -771,5 +792,6 @@ function showToast(msg, error=false) {
 cargarDatos();
 </script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </body>
 </html>
