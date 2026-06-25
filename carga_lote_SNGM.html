@@ -78,8 +78,8 @@
   #map-resumen{height:420px;border-radius:8px;border:1.5px solid var(--border)}
   /* Status bar */
   #status-bar{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark);margin-bottom:16px;display:none}
-  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
-  #toast.show{transform:translateY(0);opacity:1}
+  #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.88);background:var(--gh-green-dark);color:white;padding:30px 44px;border-radius:16px;font-size:22px;font-weight:700;line-height:1.4;text-align:center;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;z-index:9999;max-width:560px;box-shadow:0 16px 50px rgba(0,0,0,.4)}
+  #toast.show{transform:translate(-50%,-50%) scale(1);opacity:1}
   #toast.error{background:#b33}
   #toast.info{background:#1a56db}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}

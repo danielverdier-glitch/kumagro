@@ -58,8 +58,8 @@
   .estado-si{color:var(--verde)}
   .estado-no{color:var(--rojo)}
   .estado-toggle:hover{border-color:var(--border)}
-  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
-  #toast.show{transform:translateY(0);opacity:1}
+  #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.88);background:var(--gh-green-dark);color:white;padding:30px 44px;border-radius:16px;font-size:22px;font-weight:700;line-height:1.4;text-align:center;opacity:0;pointer-events:none;transition:transform .25s,opacity .25s;z-index:9999;max-width:560px;box-shadow:0 16px 50px rgba(0,0,0,.4)}
+  #toast.show{transform:translate(-50%,-50%) scale(1);opacity:1}
   #toast.error{background:#b33}
   @media(max-width:700px){.grid-2,.grid-3,.kpi-row{grid-template-columns:1fr}}
 
@@ -169,7 +169,7 @@
 </div>
 
 <div class="modal-overlay" id="modal-convenio">
-  <div class="modal-box">
+  <div class="modal-box" oninput="validarFormConvenio()">
     <div class="modal-title">Generar convenio</div>
     <div class="modal-sub" id="conv-modal-sub">Cliente</div>
 
@@ -219,7 +219,7 @@
 
     <div class="modal-actions">
       <button type="button" class="btn btn-secundario" onclick="cerrarModalConvenio()">Cancelar</button>
-      <button type="button" class="btn btn-primary" onclick="confirmarGenerarConvenio()">Generar convenio</button>
+      <button type="button" class="btn btn-primary" id="btn-generar-convenio" onclick="confirmarGenerarConvenio()">Generar convenio</button>
     </div>
   </div>
 </div>
@@ -633,7 +633,26 @@ function abrirModalConvenio(cliente) {
     </tr>`).join('');
 
   document.getElementById('modal-convenio').classList.add('show');
+  validarFormConvenio();
   setTimeout(() => renderMapaConvenio(establecimientos, cliente), 50);
+}
+
+// Todos los campos del convenio son obligatorios: el botón "Generar convenio"
+// queda deshabilitado hasta que estén todos completos (incluidos los kilos por
+// variedad). Se llama desde el oninput del modal y al abrirlo.
+function validarFormConvenio() {
+  const ids = ['conv-fecha','conv-razon-social','conv-cuit','conv-nombre-completo',
+    'conv-dni','conv-rol','conv-domicilio','conv-campana','conv-plazo','conv-comision'];
+  let completo = ids.every(id => {
+    const el = document.getElementById(id);
+    return el && el.value.trim() !== '';
+  });
+  if (completo) {
+    completo = [...document.querySelectorAll('#conv-tabla-variedades input')]
+      .every(inp => inp.value.trim() !== '');
+  }
+  const btn = document.getElementById('btn-generar-convenio');
+  if (btn) btn.disabled = !completo;
 }
 
 function renderMapaConvenio(establecimientos, cliente) {
@@ -651,7 +670,9 @@ function renderMapaConvenio(establecimientos, cliente) {
     const ultima = ultimaPorLote[l.id_lote] || null;
     const variedad = ((ultima && ultima.variedad ? ultima.variedad : l.variedad) || '—').trim();
     const has = (parseFloat(l.area_ha) || 0).toLocaleString('es-AR',{maximumFractionDigits:1});
-    const etiqueta = `<strong>${l.nombre_campo||'—'}</strong><br>${has} ha · ${variedad}`;
+    const lat = parseFloat(l.latitud_centroide), lng = parseFloat(l.longitud_centroide);
+    const coordTxt = (!isNaN(lat) && !isNaN(lng)) ? `<br>📍 ${lat.toFixed(5)}, ${lng.toFixed(5)}` : '';
+    const etiqueta = `<strong>${l.nombre_campo||'—'}</strong><br>${has} ha · ${variedad}${coordTxt}`;
     const poly = L.polygon(ll, { color:'#c23b3b', fillColor:'#c23b3b', fillOpacity:.45, weight:2 }).addTo(mapaConvenio);
     poligonos.push({ poly, etiqueta });
   });
