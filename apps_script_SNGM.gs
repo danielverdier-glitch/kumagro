@@ -9,6 +9,17 @@ const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive pa
 const CONVENIO_TEMPLATE_ID = '1ghudeYpGsSd6Ccs76F0TUbGoBfK9Uk1SjT_Z-pIDsL0'; // Convenio_semilla (Google Doc)
 const CONVENIOS_FOLDER     = '19-WOikRaRQmKh2rX1i2ZCzRgDPc66BMB'; // subcarpeta "Convenios" dentro de "Programa SNGM"
 
+// Ejecutá esta función UNA vez desde el editor (dropdown de funciones →
+// "autorizar" → ▶ Ejecutar) y aceptá los permisos nuevos: van a incluir el
+// acceso a "Documentos de Google", que es el que faltaba para DocumentApp.
+// Después de aceptar, la generación de convenios ya funciona (no hace falta
+// re-desplegar: el permiso queda concedido a nivel del proyecto).
+function autorizar() {
+  const nombre = DocumentApp.openById(CONVENIO_TEMPLATE_ID).getName();
+  DriveApp.getFolderById(CONVENIOS_FOLDER).getName();
+  return nombre; // si devuelve "Convenio_semilla", quedó autorizado OK
+}
+
 function doPost(e) {
   // Varios usuarios pueden guardar filas casi al mismo tiempo (ej. carga
   // masiva, varios clicks rápidos en "Guardar"). Sin lock, dos ejecuciones
