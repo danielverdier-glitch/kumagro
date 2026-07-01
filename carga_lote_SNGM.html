@@ -85,6 +85,13 @@
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .required{color:#c0392b}
+  .productor-wrap{display:flex;gap:8px;align-items:center}
+  .productor-wrap input{flex:1}
+  .productor-wrap .btn{padding:9px 14px;font-size:13px;white-space:nowrap}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.show{display:flex}
+  .modal-box{background:var(--surface);border-radius:var(--radius);max-width:480px;width:100%;padding:24px 26px}
+  .modal-title{font-size:16px;font-weight:700;color:var(--gh-green-dark);margin-bottom:16px}
   @media(max-width:600px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.btn-row{flex-wrap:wrap}}
 </style>
 </head>
@@ -110,7 +117,11 @@
     <div class="grid-4" style="margin-bottom:16px">
       <div>
         <label>Productor <span class="required">*</span></label>
-        <input type="text" id="productor" placeholder="Nombre completo">
+        <div class="productor-wrap">
+          <input type="text" id="productor" list="lista-clientes" placeholder="Buscá o elegí un cliente" autocomplete="off">
+          <datalist id="lista-clientes"></datalist>
+          <button type="button" class="btn btn-secondary" onclick="abrirModalNuevoCliente()">Nuevo</button>
+        </div>
       </div>
       <div>
         <label>Nombre del campo <span class="required">*</span></label>
@@ -246,6 +257,20 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-nuevo-cliente">
+  <div class="modal-box">
+    <div class="modal-title">Nuevo cliente</div>
+    <div class="grid-2">
+      <div><label>Razón social</label><input type="text" id="nc-razon-social" placeholder="Nombre / Razón social"></div>
+      <div><label>CUIT</label><input type="text" id="nc-cuit" placeholder="20-12345678-9"></div>
+    </div>
+    <div class="btn-row" style="margin-top:20px">
+      <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevoCliente()">Cancelar</button>
+      <button type="button" class="btn btn-primary" id="btn-aceptar-nuevo-cliente" onclick="confirmarNuevoCliente()">Aceptar</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -269,6 +294,7 @@ let drawnItems=null;
 let lotesAgregados  = [];
 let lotesExistentes = []; // lotes ya cargados en la base (Sheet), para evitar duplicados
 let resumenLayers   = [];
+let clientesLista   = []; // [{razonSocial, cuit}] de la hoja "lista de clientes"
 
 // ─── COLOR POR CAMPAÑA / PINES EN ZOOM CHICO ──────────────
 const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
@@ -704,6 +730,69 @@ async function cargarLotesExistentes() {
   } catch(e) { lotesExistentes = []; }
 }
 
+// ─── CLIENTES (selector de Productor) ─────────────────────
+// Trae la lista de clientes ("Ficha de cliente Name" / "Nº CUIT") para
+// poblar el <datalist> del campo Productor, que permite tipear y filtrar
+// las opciones (autocompletado nativo del navegador).
+async function cargarClientes() {
+  if (APPS_SCRIPT_URL === 'TU_APPS_SCRIPT_URL_AQUI') return;
+  try {
+    const res = await fetch(APPS_SCRIPT_URL + '?action=getClientes');
+    const data = await res.json();
+    clientesLista = Array.isArray(data) ? data : [];
+  } catch(e) { clientesLista = []; }
+  poblarDatalistClientes();
+}
+
+function poblarDatalistClientes() {
+  const nombres = [...new Set(clientesLista.map(c=>c.razonSocial).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  document.getElementById('lista-clientes').innerHTML =
+    nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+}
+
+function abrirModalNuevoCliente() {
+  document.getElementById('nc-razon-social').value = '';
+  document.getElementById('nc-cuit').value = '';
+  document.getElementById('modal-nuevo-cliente').classList.add('show');
+}
+
+function cerrarModalNuevoCliente() {
+  document.getElementById('modal-nuevo-cliente').classList.remove('show');
+}
+
+// Agrega el cliente nuevo a la hoja "lista de clientes" (columnas "Ficha de
+// cliente Name" y "Nº CUIT") y lo deja seleccionado en el campo Productor
+// para continuar la carga del lote con normalidad.
+async function confirmarNuevoCliente() {
+  const razonSocial = document.getElementById('nc-razon-social').value.trim();
+  const cuit = document.getElementById('nc-cuit').value.trim();
+  if (!razonSocial) { showToast('Ingresá la razón social', true); return; }
+  if (!cuit) { showToast('Ingresá el CUIT', true); return; }
+
+  const btn = document.getElementById('btn-aceptar-nuevo-cliente');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method:'POST', mode:'no-cors',
+      body: JSON.stringify({ action:'appendCliente', data:{ razonSocial, cuit } })
+    });
+    clientesLista.push({ razonSocial, cuit });
+    poblarDatalistClientes();
+    document.getElementById('productor').value = razonSocial;
+    cerrarModalNuevoCliente();
+    showToast('Cliente "' + razonSocial + '" agregado');
+  } catch(e) {
+    showToast('No se pudo guardar el cliente (error de red)', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
 // Clave única de un lote: productor + campo + lote + campaña (normalizada).
 function claveLote(productor, campo, lote, campana) {
   return [productor, campo, lote].map(s => String(s||'').trim().toLowerCase()).join('||')
@@ -922,6 +1011,7 @@ function showToast(msg,error=false,info=false){
 document.addEventListener('DOMContentLoaded',()=>{
   checkConfig();
   cargarLotesExistentes();
+  cargarClientes();
   setTimeout(initMap1,100);
   setTimeout(initMapResumen,200);
   document.getElementById('variedad').addEventListener('change',function(){

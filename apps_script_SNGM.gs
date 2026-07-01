@@ -15,6 +15,18 @@ function plantillaConvenio_(tipo) {
   return tipo === 'UP' ? CONVENIO_TEMPLATE_UP_ID : CONVENIO_TEMPLATE_ID;
 }
 
+// Base de clientes (carga_lote_SNGM.html → selector de Productor + botón
+// "Nuevo"). Vive en una Hoja de Google APARTE de SHEET_ID (convertida desde
+// "lista de clientes.xlsx"), con más columnas de las que usamos acá; solo
+// se leen/escriben "Ficha de cliente Name" (razón social) y "Nº CUIT".
+const CLIENTES_SHEET_ID = '1-JMen__6QiKTKGwjc1EXuiXMwJtyCxvf';
+const COL_CLIENTE_NOMBRE = 'Ficha de cliente Name';
+const COL_CLIENTE_CUIT   = 'Nº CUIT';
+
+function hojaClientes_() {
+  return SpreadsheetApp.openById(CLIENTES_SHEET_ID).getSheets()[0];
+}
+
 // Ejecutá esta función UNA vez desde el editor (dropdown de funciones →
 // "autorizar" → ▶ Ejecutar) y aceptá los permisos nuevos: van a incluir el
 // acceso a "Documentos de Google", que es el que faltaba para DocumentApp.
@@ -156,6 +168,21 @@ function doPost(e) {
       semanasRecibidas.forEach(s => { fila[headers.indexOf(s.inicio)] = s.tn_entregada; });
 
       sheet.getRange(sheet.getLastRow() + 1, 1, 1, fila.length).setValues([fila]);
+    }
+
+    // Usado por carga_lote_SNGM.html (botón "Nuevo" del selector de
+    // Productor): agrega un cliente a la hoja "lista de clientes",
+    // completando solo las columnas que usa la app (el resto queda vacío).
+    if (payload.action === 'appendCliente') {
+      const d = payload.data;
+      const sheet = hojaClientes_();
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
+      const iCuit   = headers.indexOf(COL_CLIENTE_CUIT);
+      const fila = new Array(headers.length).fill('');
+      if (iNombre > -1) fila[iNombre] = d.razonSocial;
+      if (iCuit > -1) fila[iCuit] = d.cuit;
+      sheet.appendRow(fila);
     }
 
     // Usado por administrativo_SNGM.html: rellena la plantilla (Google Doc) con
@@ -309,6 +336,26 @@ function headersComoTexto(sheet) {
 // cada semana cargada, con el encabezado siendo la fecha de inicio de semana.
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || 'getLotes';
+
+  // Usado por carga_lote_SNGM.html para poblar el selector de Productor
+  // (razón social + CUIT de la hoja "lista de clientes").
+  if (action === 'getClientes') {
+    const sheet = hojaClientes_();
+    const rows = sheet.getDataRange().getValues();
+    if (rows.length < 2) {
+      return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    }
+    const headers = rows[0];
+    const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
+    const iCuit   = headers.indexOf(COL_CLIENTE_CUIT);
+    const data = rows.slice(1)
+      .map(r => ({
+        razonSocial: String(iNombre > -1 && r[iNombre] != null ? r[iNombre] : '').trim(),
+        cuit: String(iCuit > -1 && r[iCuit] != null ? r[iCuit] : '').trim()
+      }))
+      .filter(c => c.razonSocial);
+    return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+  }
 
   // Lista los nombres de archivo de los convenios ya generados (subcarpeta
   // "Convenios"). administrativo_SNGM.html lo usa para saber qué clientes ya
