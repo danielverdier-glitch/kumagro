@@ -117,8 +117,7 @@
       </div>
       <div>
         <label>Campaña</label>
-        <select id="f-campana" onchange="renderTabla()">
-          <option value="">Todas</option>
+        <select id="f-campana" disabled title="Los convenios solo se generan para la campaña activa">
         </select>
       </div>
       <div>
@@ -274,37 +273,33 @@ function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
   sel.value = valorValido;
 }
 
-// Los filtros se acotan entre sí: las opciones de "Cliente" se calculan
-// ignorando el propio filtro de cliente (pero respetando el de campaña), y
-// viceversa.
+// Los convenios solo se generan para la campaña activa (los datos de
+// campañas anteriores no aplican al ciclo de convenios en curso), por eso
+// la campaña queda fija en la más reciente y no es seleccionable: el
+// filtro de "Cliente" se calcula ya acotado a esa única campaña, dejando
+// afuera clientes y campos que no tengan lotes en ella.
 function construirFiltros() {
   const cliente = document.getElementById('f-cliente').value;
-  const campana = document.getElementById('f-campana').value;
+  const campana = campanaMasReciente();
 
-  const filtrar = (omitir) => allLotes.filter(l =>
-    (omitir === 'cliente' || !cliente || l.productor === cliente) &&
-    (omitir === 'campana' || !campana || l.campana  === campana)
-  );
-
-  const clientes = [...new Set(filtrar('cliente').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
-  const campanas = [...new Set(filtrar('campana').map(l=>l.campana).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  const lotesCampana = allLotes.filter(l => l.campana === campana);
+  const clientes = [...new Set(lotesCampana.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
 
   rellenarSelect('f-cliente', clientes, 'Todos', cliente);
-  rellenarSelect('f-campana', campanas, 'Todas', campana);
+  rellenarSelect('f-campana', campana ? [campana] : [], 'Sin datos', campana);
 }
 
 function lotesFiltrados() {
   const cliente = document.getElementById('f-cliente').value;
-  const campana = document.getElementById('f-campana').value;
+  const campana = campanaMasReciente();
   return allLotes.filter(l =>
     (!cliente || l.productor === cliente) &&
-    (!campana || l.campana  === campana)
+    l.campana === campana
   );
 }
 
 function limpiarFiltros() {
   document.getElementById('f-cliente').value = '';
-  document.getElementById('f-campana').value = '';
   document.getElementById('f-estado-convenio').value = '';
   renderTabla();
 }
@@ -363,10 +358,6 @@ async function cargarDatos() {
   }
   construirUltimaPorLote();
   await asegurarSemillaUpPorDefecto();
-  renderTabla();
-  // Recién ahora existen las <option> de campaña en el select: se puede
-  // preseleccionar la más reciente y volver a renderizar ya filtrado.
-  document.getElementById('f-campana').value = campanaMasReciente();
   renderTabla();
 }
 
