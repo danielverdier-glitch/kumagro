@@ -739,8 +739,19 @@ async function cargarClientes() {
   try {
     const res = await fetch(APPS_SCRIPT_URL + '?action=getClientes');
     const data = await res.json();
-    clientesLista = Array.isArray(data) ? data : [];
-  } catch(e) { clientesLista = []; }
+    if (!Array.isArray(data)) {
+      showToast('No se pudo cargar la lista de clientes: el Apps Script no devolvió la lista esperada (¿está desplegada la última versión?)', true);
+      clientesLista = [];
+    } else {
+      clientesLista = data;
+      if (!clientesLista.length) {
+        showToast('La lista de clientes llegó vacía. Verificá CLIENTES_SHEET_ID y los nombres de columna en apps_script_SNGM.gs', true);
+      }
+    }
+  } catch(e) {
+    showToast('No se pudo cargar la lista de clientes: ' + e.message, true);
+    clientesLista = [];
+  }
   poblarDatalistClientes();
 }
 
