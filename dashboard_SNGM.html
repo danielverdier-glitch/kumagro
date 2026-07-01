@@ -864,7 +864,10 @@ function renderTabActiva() {
   }
   if (activeTab === 'mapa')           renderMapaLotes(datos);
   if (activeTab === 'comparativo')    renderComparativo(datos);
-  if (activeTab === 'logistica')      renderLogistica(datos);
+  if (activeTab === 'logistica') {
+    const campanaLog = campanaLogisticaSeleccionada || campanaMasReciente();
+    renderLogistica(datos.filter(l => l.campana === campanaLog));
+  }
   if (activeTab === 'visitas')        renderSeguimiento(datos);
   if (activeTab === 'campos')         renderCampos(datos);
   if (activeTab === 'seguimiento') {
@@ -1677,8 +1680,8 @@ function inicializarFiltroLogistica() {
 
 function cambiarCampanaLogistica(campaña) {
   campanaLogisticaSeleccionada = campaña;
-  const datosFiltradog = allLotes.filter(l => l.campana === campanaLogisticaSeleccionada);
-  renderLogistica(datosFiltradog);
+  const datosFiltrados = lotesFiltrados().filter(l => l.campana === campanaLogisticaSeleccionada);
+  renderLogistica(datosFiltrados);
 }
 
 // ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
