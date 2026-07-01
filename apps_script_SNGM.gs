@@ -7,7 +7,15 @@ const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive pa
 // graba como PDF en la subcarpeta Convenios. Al ser Doc nativo se copia con
 // makeCopy (no hace falta el Servicio Avanzado de Drive ni convertir nada).
 const CONVENIO_TEMPLATE_ID = '1ghudeYpGsSd6Ccs76F0TUbGoBfK9Uk1SjT_Z-pIDsL0'; // Convenio_semilla (Google Doc)
+// TODO: reemplazar por el ID real de la plantilla de convenio UP (Google Doc)
+// cuando esté lista. Hasta entonces usa la misma plantilla que Semilla.
+const CONVENIO_TEMPLATE_UP_ID = CONVENIO_TEMPLATE_ID;
 const CONVENIOS_FOLDER     = '19-WOikRaRQmKh2rX1i2ZCzRgDPc66BMB'; // subcarpeta "Convenios" dentro de "Programa SNGM"
+
+// Elige la plantilla según el modelo de convenio (UP o Semilla).
+function plantillaConvenio_(tipo) {
+  return tipo === 'UP' ? CONVENIO_TEMPLATE_UP_ID : CONVENIO_TEMPLATE_ID;
+}
 
 // Ejecutá esta función UNA vez desde el editor (dropdown de funciones →
 // "autorizar" → ▶ Ejecutar) y aceptá los permisos nuevos: van a incluir el
@@ -182,7 +190,8 @@ function generarConvenioPDF_(d) {
   try {
     // 1. Copiar la plantilla (Google Doc nativo) a un Doc temporal en la
     //    carpeta Convenios. makeCopy no necesita el Servicio Avanzado.
-    docId = DriveApp.getFileById(CONVENIO_TEMPLATE_ID)
+    //    UP y Semilla usan plantillas distintas (ver plantillaConvenio_).
+    docId = DriveApp.getFileById(plantillaConvenio_(d.tipo_convenio))
       .makeCopy('tmp_convenio_' + Date.now(), DriveApp.getFolderById(CONVENIOS_FOLDER))
       .getId();
 
