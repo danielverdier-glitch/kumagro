@@ -118,7 +118,7 @@
       <div>
         <label>Productor <span class="required">*</span></label>
         <div class="productor-wrap">
-          <input type="text" id="productor" list="lista-clientes" placeholder="Buscá o elegí un cliente" autocomplete="off">
+          <input type="text" id="productor" list="lista-clientes" placeholder="Buscá o elegí un cliente" autocomplete="off" onblur="validarProductorSeleccionado()">
           <datalist id="lista-clientes"></datalist>
           <button type="button" class="btn btn-secondary" onclick="abrirModalNuevoCliente()">Nuevo</button>
         </div>
@@ -770,6 +770,20 @@ function poblarDatalistClientes() {
     .sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
   document.getElementById('lista-clientes').innerHTML =
     nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+}
+
+// Solo se puede continuar con un cliente de la lista (o agregado por
+// "Nuevo"); si al salir del campo el texto tipeado no matchea ningún
+// cliente existente, se borra para forzar a elegir uno o dar de alta uno.
+function validarProductorSeleccionado() {
+  const input = document.getElementById('productor');
+  const valor = input.value.trim();
+  if (!valor) return;
+  const existe = clientesLista.some(c => c.razonSocial.toLowerCase() === valor.toLowerCase());
+  if (!existe) {
+    input.value = '';
+    showToast('Elegí un cliente de la lista o agregalo con "Nuevo"', true);
+  }
 }
 
 function abrirModalNuevoCliente() {
