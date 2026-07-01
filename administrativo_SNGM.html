@@ -49,6 +49,7 @@
   td.col-cliente{font-weight:700;color:var(--gh-green-dark)}
   td input.f-email{min-width:190px;font-size:12.5px;padding:6px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:var(--font);outline:none}
   td input.f-email:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  td input.f-email:disabled{background:var(--bg);color:var(--text-soft);cursor:not-allowed}
   .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
   .btn{padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font);white-space:nowrap}
   .btn:active{transform:scale(.97)}
@@ -480,14 +481,16 @@ function agruparPorClienteCategoria() {
 function filaHTML(cliente, tipo, est, esPrimeraDelCliente, esPrimeraDeCategoria, esUltimaDeCategoria) {
   const id = claveEstado(cliente, tipo);
   const e = estadoDe(id);
-  // El email se trae de la hoja de clientes ("E-Mail para Contratos") si
-  // todavía no se corrigió/cargó uno en esta página.
-  const emailValor = e.email || clienteDeLista(cliente).email || '';
+  // El email solo tiene sentido (y se puede cargar/editar) una vez que el
+  // convenio ya se generó (botón "Regenerar"): antes de eso, no hay a quién
+  // mandarle nada, así que el campo queda gris y vacío.
+  const generado = tieneConvenio(cliente, tipo);
+  const emailValor = generado ? (e.email || clienteDeLista(cliente).email || '') : '';
   const acciones = esUltimaDeCategoria ? `
-    <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(cliente)}','${escAttr(tipo)}')">${tieneConvenio(cliente, tipo) ? 'Regenerar' : 'Generar'}</button></td>
+    <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(cliente)}','${escAttr(tipo)}')">${generado ? 'Regenerar' : 'Generar'}</button></td>
     <td><input type="text" class="f-email" autocomplete="off" data-lpignore="true" data-1p-ignore
       name="contacto-convenio-${escAttr(id)}" placeholder="Contacto (uno o varios, separados por espacio, coma o ;)"
-      value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
+      value="${escAttr(emailValor)}" ${generado ? '' : 'disabled'} oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
     <td>${tildeHTML(id, 'firmado')}</td>
