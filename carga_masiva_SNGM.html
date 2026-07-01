@@ -26,6 +26,7 @@
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
   .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
   .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+  .grid-5{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:16px}
   label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
   select,input[type=number]{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
   select:focus,input:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
@@ -53,7 +54,8 @@
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
-  @media(max-width:700px){.grid-3,.grid-4{grid-template-columns:1fr}}
+  @media(max-width:700px){.grid-3,.grid-4,.grid-5{grid-template-columns:1fr}}
+  .campo-otro{margin-top:6px}
 </style>
 </head>
 <body>
@@ -72,7 +74,7 @@
 
   <div class="card">
     <div class="card-title">Filtros</div>
-    <div class="grid-4">
+    <div class="grid-5">
       <div>
         <label>Campaña</label>
         <select id="f-campana" onchange="renderTabla()">
@@ -97,6 +99,12 @@
           <option value="">Todas</option>
         </select>
       </div>
+      <div>
+        <label>Técnico</label>
+        <select id="f-tecnico" onchange="renderTabla()">
+          <option value="">Todos</option>
+        </select>
+      </div>
     </div>
     <button type="button" class="btn btn-secundario" id="btn-limpiar-filtros" onclick="limpiarFiltros()" style="margin-top:14px">Limpiar filtros</button>
   </div>
@@ -113,11 +121,12 @@
             <th data-col="siembra">Siembra</th>
             <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th>
             <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (tn)</th>
-            <th data-col="fecha_cosecha">Fecha cosecha</th><th data-col="cosechado">¿Cosechado?</th><th></th>
+            <th data-col="fecha_cosecha">Fecha cosecha</th><th data-col="cosechado">¿Cosechado?</th>
+            <th data-col="tecnico">Técnico</th><th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
-          <tr class="empty-row"><td colspan="16">Cargando lotes...</td></tr>
+          <tr class="empty-row"><td colspan="17">Cargando lotes...</td></tr>
         </tbody>
       </table>
     </div>
@@ -135,6 +144,21 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUQNs0B3vYjF61
 let allLotes   = [];
 let allVisitas = [];
 let ultimaPorLote = {};
+
+const TECNICOS_BASE = ['Daniel','M. Victoria','Nano'];
+const OTRO = '__otro__';
+
+function getExtras(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+}
+function addExtra(key, valor) {
+  if (!valor) return;
+  const extras = getExtras(key);
+  if (!extras.includes(valor)) { extras.push(valor); localStorage.setItem(key, JSON.stringify(extras)); }
+}
+function opcionesTecnicos() {
+  return [...TECNICOS_BASE, ...getExtras('visitas_tecnicos_extra')];
+}
 
 function aFechaISO(v) {
   if (!v) return '';
@@ -190,28 +214,37 @@ function construirUltimaPorLote() {
 // se calculan ignorando el propio filtro de región (pero respetando
 // campaña/productor/variedad elegidos), y así con cada uno. La campaña
 // solo admite un valor seleccionado a la vez (no es de selección múltiple).
+function tecnicoDeLote(l) {
+  const ultima = ultimaPorLote[l.id_lote] || null;
+  return (ultima && ultima.tecnico) || '';
+}
+
 function construirFiltros() {
   const campana   = document.getElementById('f-campana').value;
   const region    = document.getElementById('f-region').value;
   const productor = document.getElementById('f-productor').value;
   const variedad  = document.getElementById('f-variedad').value;
+  const tecnico   = document.getElementById('f-tecnico').value;
 
   const filtrar = (omitir) => allLotes.filter(l =>
     (omitir === 'campana'   || !campana   || l.campana   === campana) &&
     (omitir === 'region'    || !region    || l.region    === region) &&
     (omitir === 'productor' || !productor || l.productor === productor) &&
-    (omitir === 'variedad'  || !variedad  || l.variedad  === variedad)
+    (omitir === 'variedad'  || !variedad  || l.variedad  === variedad) &&
+    (omitir === 'tecnico'   || !tecnico   || tecnicoDeLote(l) === tecnico)
   );
 
   const campanas    = [...new Set(filtrar('campana').map(l=>l.campana).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const regiones    = [...new Set(filtrar('region').map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const productores = [...new Set(filtrar('productor').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const variedades  = [...new Set(filtrar('variedad').map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const tecnicos    = [...new Set(filtrar('tecnico').map(tecnicoDeLote).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
 
   rellenarSelect('f-campana', campanas, 'Todas', campana);
   rellenarSelect('f-region', regiones, 'Todas', region);
   rellenarSelect('f-productor', productores, 'Todos', productor);
   rellenarSelect('f-variedad', variedades, 'Todas', variedad);
+  rellenarSelect('f-tecnico', tecnicos, 'Todos', tecnico);
 }
 
 function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
@@ -226,11 +259,13 @@ function lotesFiltrados() {
   const region    = document.getElementById('f-region').value;
   const productor = document.getElementById('f-productor').value;
   const variedad  = document.getElementById('f-variedad').value;
+  const tecnico   = document.getElementById('f-tecnico').value;
   return allLotes.filter(l =>
     (!campana   || l.campana   === campana) &&
     (!region    || l.region    === region) &&
     (!productor || l.productor === productor) &&
-    (!variedad  || l.variedad  === variedad)
+    (!variedad  || l.variedad  === variedad) &&
+    (!tecnico   || tecnicoDeLote(l) === tecnico)
   );
 }
 
@@ -239,12 +274,13 @@ function limpiarFiltros() {
   document.getElementById('f-region').value = '';
   document.getElementById('f-productor').value = '';
   document.getElementById('f-variedad').value = '';
+  document.getElementById('f-tecnico').value = '';
   renderTabla();
 }
 
 // ─── ORDEN ────────────────────────────────────────────────
 let sortState = { col: null, dir: 'asc' };
-const COLS_TEXTO  = ['productor','region','nombre_campo','lote','variedad','semilla_up','siembra'];
+const COLS_TEXTO  = ['productor','region','nombre_campo','lote','variedad','semilla_up','siembra','tecnico'];
 const COLS_NUM    = ['ha_plan','area_ha','rinde','produccion'];
 const COLS_BOOL   = ['sembrado','cosechado'];
 const COLS_FECHA  = ['fecha_siembra','fecha_cosecha'];
@@ -271,6 +307,7 @@ function valorOrden(l, col) {
     case 'cosechado': return ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
     case 'fecha_siembra': return ultima ? aFechaISO(ultima.fecha_siembra) : '';
     case 'fecha_cosecha': return ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
+    case 'tecnico': return tecnicoDeLote(l);
     default: return '';
   }
 }
@@ -343,6 +380,10 @@ function filaHTML(l) {
   const rindePrevio    = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : '';
   const cosechadoPrevio= ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
   const produccionPrevia = (rindePrevio !== '' && !isNaN(rindePrevio)) ? (rindePrevio * areaHa / 10) : 0;
+  const tecnicoPrevio = tecnicoDeLote(l);
+  const opciones = opcionesTecnicos();
+  const tecnicoEsExtra = tecnicoPrevio && !opciones.includes(tecnicoPrevio);
+  const opcionesTecnico = tecnicoEsExtra ? [...opciones, tecnicoPrevio] : opciones;
 
   return `
   <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-lote="${escAttr(l.lote)}" data-area-ha="${areaHa}">
@@ -371,6 +412,14 @@ function filaHTML(l) {
     <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
     <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
+    <td>
+      <select class="f-tecnico" onchange="onTecnicoFilaChange(this)">
+        <option value="">Seleccioná...</option>
+        ${opcionesTecnico.map(o=>`<option value="${escAttr(o)}" ${o===tecnicoPrevio?'selected':''}>${o}</option>`).join('')}
+        <option value="${OTRO}">Otro...</option>
+      </select>
+      <input type="text" class="f-tecnico-otro campo-otro" placeholder="Nombre del técnico" style="display:none">
+    </td>
     <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
   </tr>`;
 }
@@ -380,7 +429,7 @@ function renderTabla() {
   const tbody = document.getElementById('tabla-body');
   const lotes = lotesOrdenados(lotesFiltrados());
   if (!lotes.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="16">No hay lotes para los filtros seleccionados</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="17">No hay lotes para los filtros seleccionados</td></tr>';
     return;
   }
   tbody.innerHTML = lotes.map(filaHTML).join('');
@@ -391,6 +440,19 @@ function recalcularProduccion(input) {
   const areaHa = parseFloat(tr.dataset.areaHa) || 0;
   const rinde = parseFloat(input.value) || 0;
   tr.querySelector('.col-produccion').textContent = (rinde*areaHa/10).toLocaleString('es-AR',{maximumFractionDigits:1});
+}
+
+function onTecnicoFilaChange(sel) {
+  const tr = sel.closest('tr');
+  const otro = tr.querySelector('.f-tecnico-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+}
+
+function valorTecnicoFila(tr) {
+  const sel = tr.querySelector('.f-tecnico');
+  if (sel.value === OTRO) return tr.querySelector('.f-tecnico-otro').value.trim();
+  return sel.value;
 }
 
 // ─── GUARDAR FILA ─────────────────────────────────────────
@@ -414,6 +476,7 @@ async function guardarFila(btn) {
   const rinde        = get('.f-rinde').value;
   const cosechado    = get('.f-cosechado').checked;
   const produccion   = (parseFloat(rinde)||0) * areaHa;
+  const tecnico      = valorTecnicoFila(tr);
 
   const original = btn.textContent;
   btn.disabled = true;
@@ -426,7 +489,7 @@ async function guardarFila(btn) {
       body: JSON.stringify({
         action:'appendVisita',
         data: {
-          id_visita: 'MASIVO-' + Date.now(), fecha_visita: fechaHoy, tecnico:'', productor,
+          id_visita: 'MASIVO-' + Date.now(), fecha_visita: fechaHoy, tecnico, productor,
           nombre_campo: campo, id_lote: idLote, lote,
           lat_visita:'', lng_visita:'',
           lote_sembrado: sembrado, fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
@@ -440,12 +503,15 @@ async function guardarFila(btn) {
       })
     });
 
+    if (get('.f-tecnico').value === OTRO) addExtra('visitas_tecnicos_extra', tecnico);
+
     // Actualizar caché local para que quede consistente si se vuelve a filtrar
     ultimaPorLote[idLote] = {
       id_lote: idLote, fecha_visita: fechaHoy, lote_sembrado: sembrado,
       fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
       rinde_estimado_qqha: rinde, lote_cosechado: cosechado ? 'Sí' : 'No',
-      ha_plan: haPlan, semilla_up: semillaUp, variedad, siembra, tipo_registro: 'carga_masiva'
+      ha_plan: haPlan, semilla_up: semillaUp, variedad, siembra, tipo_registro: 'carga_masiva',
+      tecnico
     };
 
     tr.classList.add('fila-guardada');
