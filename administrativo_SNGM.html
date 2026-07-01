@@ -485,7 +485,9 @@ function filaHTML(cliente, tipo, est, esPrimeraDelCliente, esPrimeraDeCategoria,
   const emailValor = e.email || clienteDeLista(cliente).email || '';
   const acciones = esUltimaDeCategoria ? `
     <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(cliente)}','${escAttr(tipo)}')">${tieneConvenio(cliente, tipo) ? 'Regenerar' : 'Generar'}</button></td>
-    <td><input type="text" class="f-email" autocomplete="off" name="email-${escAttr(id)}" placeholder="email@productor.com (podés separar varios con espacio, coma o ;)" value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
+    <td><input type="text" class="f-email" autocomplete="off" data-lpignore="true" data-1p-ignore
+      name="contacto-convenio-${escAttr(id)}" placeholder="Contacto (uno o varios, separados por espacio, coma o ;)"
+      value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
     <td>${tildeHTML(id, 'firmado')}</td>
