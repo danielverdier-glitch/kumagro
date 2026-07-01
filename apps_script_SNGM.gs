@@ -35,13 +35,25 @@ function hojaClientes_() {
   return SpreadsheetApp.openById(CLIENTES_SHEET_ID).getSheets()[0];
 }
 
+// Busca una columna por nombre tolerando espacios extra en la celda del
+// encabezado (ej. "Direccion " con espacio al final, típico de planillas
+// cargadas/convertidas a mano). indexOf exacto fallaba silenciosamente en
+// esos casos, devolviendo -1 y dejando el campo vacío en vez de leerlo.
+function indexColumna_(headers, nombre) {
+  const buscado = String(nombre).trim().toLowerCase();
+  for (let i = 0; i < headers.length; i++) {
+    if (String(headers[i] == null ? '' : headers[i]).trim().toLowerCase() === buscado) return i;
+  }
+  return -1;
+}
+
 // Agrega, si todavía no existen, las columnas propias del convenio al final
 // de la hoja de clientes (mismo patrón que las columnas de semana en
 // guardarEntrega): así no hace falta editar la planilla a mano.
 function asegurarColumnasClientes_(sheet) {
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   const columnasConvenio = [COL_CLIENTE_REP_NOMBRE, COL_CLIENTE_REP_DNI, COL_CLIENTE_REP_ROL, COL_CLIENTE_PLAZO, COL_CLIENTE_COMISION];
-  const faltantes = columnasConvenio.filter(c => headers.indexOf(c) === -1);
+  const faltantes = columnasConvenio.filter(c => indexColumna_(headers, c) === -1);
   if (faltantes.length) {
     sheet.getRange(1, sheet.getLastColumn() + 1, 1, faltantes.length).setValues([faltantes]);
   }
@@ -197,8 +209,8 @@ function doPost(e) {
       const d = payload.data;
       const sheet = hojaClientes_();
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
-      const iCuit   = headers.indexOf(COL_CLIENTE_CUIT);
+      const iNombre = indexColumna_(headers, COL_CLIENTE_NOMBRE);
+      const iCuit   = indexColumna_(headers, COL_CLIENTE_CUIT);
       const fila = new Array(headers.length).fill('');
       if (iNombre > -1) fila[iNombre] = d.razonSocial;
       if (iCuit > -1) fila[iCuit] = d.cuit;
@@ -216,7 +228,7 @@ function doPost(e) {
       const sheet = hojaClientes_();
       asegurarColumnasClientes_(sheet);
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
+      const iNombre = indexColumna_(headers, COL_CLIENTE_NOMBRE);
       const filas = sheet.getDataRange().getValues();
       const claveBuscada = String(d.clienteOriginal || '').trim().toLowerCase();
       let filaIdx = -1;
@@ -239,13 +251,13 @@ function doPost(e) {
         // pero por las dudas se agrega como fila nueva en vez de perder los datos.
         const nuevaFila = new Array(headers.length).fill('');
         Object.keys(valoresPorColumna).forEach(col => {
-          const idx = headers.indexOf(col);
+          const idx = indexColumna_(headers, col);
           if (idx > -1) nuevaFila[idx] = valoresPorColumna[col];
         });
         sheet.appendRow(nuevaFila);
       } else {
         Object.keys(valoresPorColumna).forEach(col => {
-          const idx = headers.indexOf(col);
+          const idx = indexColumna_(headers, col);
           if (idx > -1) sheet.getRange(filaIdx, idx + 1).setValue(valoresPorColumna[col]);
         });
       }
@@ -414,14 +426,14 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
     }
     const headers = rows[0];
-    const iNombre     = headers.indexOf(COL_CLIENTE_NOMBRE);
-    const iCuit       = headers.indexOf(COL_CLIENTE_CUIT);
-    const iDireccion  = headers.indexOf(COL_CLIENTE_DIRECCION);
-    const iRepNombre  = headers.indexOf(COL_CLIENTE_REP_NOMBRE);
-    const iRepDni     = headers.indexOf(COL_CLIENTE_REP_DNI);
-    const iRepRol     = headers.indexOf(COL_CLIENTE_REP_ROL);
-    const iPlazo      = headers.indexOf(COL_CLIENTE_PLAZO);
-    const iComision   = headers.indexOf(COL_CLIENTE_COMISION);
+    const iNombre     = indexColumna_(headers, COL_CLIENTE_NOMBRE);
+    const iCuit       = indexColumna_(headers, COL_CLIENTE_CUIT);
+    const iDireccion  = indexColumna_(headers, COL_CLIENTE_DIRECCION);
+    const iRepNombre  = indexColumna_(headers, COL_CLIENTE_REP_NOMBRE);
+    const iRepDni     = indexColumna_(headers, COL_CLIENTE_REP_DNI);
+    const iRepRol     = indexColumna_(headers, COL_CLIENTE_REP_ROL);
+    const iPlazo      = indexColumna_(headers, COL_CLIENTE_PLAZO);
+    const iComision   = indexColumna_(headers, COL_CLIENTE_COMISION);
     const val = (r, i) => String(i > -1 && r[i] != null ? r[i] : '').trim();
     const data = rows.slice(1)
       .map(r => ({
