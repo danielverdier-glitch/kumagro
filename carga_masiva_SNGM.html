@@ -25,6 +25,7 @@
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;margin-bottom:20px}
   .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
   .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
   label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
   select,input[type=number]{width:100%;padding:8px 11px;border:1.5px solid var(--border);border-radius:7px;font-size:13.5px;font-family:var(--font);color:var(--text);background:white;outline:none}
   select:focus,input:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
@@ -52,7 +53,7 @@
   #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
   #toast.show{transform:translateY(0);opacity:1}
   #toast.error{background:#b33}
-  @media(max-width:700px){.grid-3{grid-template-columns:1fr}}
+  @media(max-width:700px){.grid-3,.grid-4{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -71,7 +72,13 @@
 
   <div class="card">
     <div class="card-title">Filtros</div>
-    <div class="grid-3">
+    <div class="grid-4">
+      <div>
+        <label>Campaña</label>
+        <select id="f-campana" onchange="renderTabla()">
+          <option value="">Todas</option>
+        </select>
+      </div>
       <div>
         <label>Región</label>
         <select id="f-region" onchange="renderTabla()">
@@ -170,24 +177,29 @@ function construirUltimaPorLote() {
   });
 }
 
-// Cada filtro acota las opciones de los otros dos: las opciones de
-// "Región" se calculan ignorando el propio filtro de región (pero
-// respetando productor/variedad elegidos), y así con cada uno.
+// Cada filtro acota las opciones de los demás: las opciones de "Región"
+// se calculan ignorando el propio filtro de región (pero respetando
+// campaña/productor/variedad elegidos), y así con cada uno. La campaña
+// solo admite un valor seleccionado a la vez (no es de selección múltiple).
 function construirFiltros() {
+  const campana   = document.getElementById('f-campana').value;
   const region    = document.getElementById('f-region').value;
   const productor = document.getElementById('f-productor').value;
   const variedad  = document.getElementById('f-variedad').value;
 
   const filtrar = (omitir) => allLotes.filter(l =>
+    (omitir === 'campana'   || !campana   || l.campana   === campana) &&
     (omitir === 'region'    || !region    || l.region    === region) &&
     (omitir === 'productor' || !productor || l.productor === productor) &&
     (omitir === 'variedad'  || !variedad  || l.variedad  === variedad)
   );
 
+  const campanas    = [...new Set(filtrar('campana').map(l=>l.campana).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const regiones    = [...new Set(filtrar('region').map(l=>l.region).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const productores = [...new Set(filtrar('productor').map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const variedades  = [...new Set(filtrar('variedad').map(l=>l.variedad).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
 
+  rellenarSelect('f-campana', campanas, 'Todas', campana);
   rellenarSelect('f-region', regiones, 'Todas', region);
   rellenarSelect('f-productor', productores, 'Todos', productor);
   rellenarSelect('f-variedad', variedades, 'Todas', variedad);
@@ -201,10 +213,12 @@ function rellenarSelect(id, valores, etiquetaTodos, valorActual) {
 }
 
 function lotesFiltrados() {
+  const campana   = document.getElementById('f-campana').value;
   const region    = document.getElementById('f-region').value;
   const productor = document.getElementById('f-productor').value;
   const variedad  = document.getElementById('f-variedad').value;
   return allLotes.filter(l =>
+    (!campana   || l.campana   === campana) &&
     (!region    || l.region    === region) &&
     (!productor || l.productor === productor) &&
     (!variedad  || l.variedad  === variedad)
@@ -212,6 +226,7 @@ function lotesFiltrados() {
 }
 
 function limpiarFiltros() {
+  document.getElementById('f-campana').value = '';
   document.getElementById('f-region').value = '';
   document.getElementById('f-productor').value = '';
   document.getElementById('f-variedad').value = '';
