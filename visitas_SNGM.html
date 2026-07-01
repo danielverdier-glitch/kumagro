@@ -245,6 +245,18 @@ let puntoVisita = null; // {lat,lng}
 let imagenes = []; // File[]
 let manualLoteSeq = 0;
 
+function campanaMasReciente() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanas[campanas.length-1];
+}
+
+// Las visitas solo tienen sentido registrarlas contra lotes de la campaña
+// activa; los productores/campos/lotes de campañas anteriores no se ofrecen.
+function lotesCampanaActiva() {
+  const campana = campanaMasReciente();
+  return allLotes.filter(l => l.campana === campana);
+}
+
 // ─── LOCALSTORAGE EXTRAS ──────────────────────────────────
 function getExtras(key) {
   try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
@@ -308,7 +320,7 @@ function valorTecnico() {
 }
 
 function construirProductores() {
-  const productores = [...new Set(allLotes.map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const productores = [...new Set(lotesCampanaActiva().map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const extras = getExtras('visitas_productores_extra').filter(p=>!productores.includes(p));
   poblarSelectConOtro(document.getElementById('sel-productor'), [...productores, ...extras].sort((a,b)=>a.localeCompare(b)));
 }
@@ -329,7 +341,7 @@ function onProductorChange() {
     limpiarPoligonosExistentes();
     return;
   }
-  const campos = [...new Set(allLotes.filter(l=>l.productor===productor).map(l=>l.nombre_campo).filter(Boolean))];
+  const campos = [...new Set(lotesCampanaActiva().filter(l=>l.productor===productor).map(l=>l.nombre_campo).filter(Boolean))];
   const extrasCampo = (getExtrasCampo()[productor] || []).filter(c=>!campos.includes(c));
   poblarSelectConOtro(selCampo, [...campos, ...extrasCampo].sort((a,b)=>a.localeCompare(b)));
   selCampo.disabled = false;
@@ -353,7 +365,7 @@ function onCampoOtroInput() {
   const productor = valorProductor();
   const campo = valorCampo();
   if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
-  const lotes = allLotes.filter(l=>l.productor===productor && l.nombre_campo===campo);
+  const lotes = lotesCampanaActiva().filter(l=>l.productor===productor && l.nombre_campo===campo);
   renderTablaLotes(lotes);
   dibujarPoligonosExistentes(lotes);
 }
@@ -367,7 +379,7 @@ function onCampoChange() {
   const productor = valorProductor();
   const campo = valorCampo();
   if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
-  const lotes = allLotes.filter(l=>l.productor===productor && l.nombre_campo===campo);
+  const lotes = lotesCampanaActiva().filter(l=>l.productor===productor && l.nombre_campo===campo);
   renderTablaLotes(lotes);
   dibujarPoligonosExistentes(lotes);
 }
