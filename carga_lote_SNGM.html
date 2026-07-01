@@ -742,6 +742,13 @@ async function cargarClientes() {
     if (!Array.isArray(data)) {
       showToast('No se pudo cargar la lista de clientes: el Apps Script no devolvió la lista esperada (¿está desplegada la última versión?)', true);
       clientesLista = [];
+    } else if (data.length && data[0].razonSocial === undefined) {
+      // La acción 'getClientes' no existe en el código YA DESPLEGADO: cae al
+      // comportamiento genérico de doGet y devuelve otra hoja (ej. lotes) en
+      // vez de clientes. Esto pasa si se pegó el código pero no se creó una
+      // nueva versión del deployment del Web App.
+      showToast('El Apps Script publicado todavía es el código viejo (no tiene "getClientes"). Creá una nueva versión del deployment: Implementar → Administrar implementaciones → editar → Nueva versión.', true);
+      clientesLista = [];
     } else {
       clientesLista = data;
       if (!clientesLista.length) {
