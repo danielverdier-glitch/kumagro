@@ -241,6 +241,7 @@
           <div class="kpi-box">
             <div><span class="kpi-value" id="kpi-ha">0</span><span class="kpi-unit">ha</span></div>
             <div class="kpi-label" id="kpi-ha-plan">Plan: 0 ha</div>
+            <div class="kpi-label" id="kpi-tn">0 tn estimadas</div>
             <div class="kpi-sub" id="kpi-lotes">0 lotes</div>
           </div>
         </div>
@@ -1063,6 +1064,17 @@ function renderKpi(datos) {
   document.getElementById('kpi-lotes').textContent = datos.length + (datos.length===1?' lote':' lotes');
   const totalHaPlan = allLotes.reduce((s,l)=>s+l.area_ha,0);
   document.getElementById('kpi-ha-plan').textContent = 'Plan: ' + totalHaPlan.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' ha';
+
+  // Toneladas estimadas: rinde (qq/ha) x has / 10, con el último rinde
+  // cargado de cada lote (0 si todavía no tiene rinde informado).
+  const ultima = ultimaPorLoteVisitas(datos);
+  const totalTn = datos.reduce((s,l) => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    return s + ((!isNaN(rinde) && rinde > 0) ? (rinde * l.area_ha / 10) : 0);
+  }, 0);
+  document.getElementById('kpi-tn').textContent = totalTn.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' tn estimadas';
+
   renderGaugeConvenios(datos);
 }
 
