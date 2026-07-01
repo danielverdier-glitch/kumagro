@@ -737,7 +737,10 @@ async function cargarLotesExistentes() {
 async function cargarClientes() {
   if (APPS_SCRIPT_URL === 'TU_APPS_SCRIPT_URL_AQUI') return;
   try {
-    const res = await fetch(APPS_SCRIPT_URL + '?action=getClientes');
+    // Cache-buster (_=timestamp) + no-store: la URL de ?action=getClientes es
+    // siempre la misma, así que sin esto el navegador puede reusar una
+    // respuesta vieja cacheada (ej. de antes de redesplegar el Apps Script).
+    const res = await fetch(APPS_SCRIPT_URL + '?action=getClientes&_=' + Date.now(), { cache:'no-store' });
     const data = await res.json();
     if (!Array.isArray(data)) {
       showToast('No se pudo cargar la lista de clientes: el Apps Script no devolvió la lista esperada (¿está desplegada la última versión?)', true);
