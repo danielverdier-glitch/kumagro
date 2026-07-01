@@ -1508,6 +1508,23 @@ function construirSemanasLogistica(anio) {
   return out;
 }
 
+// Las fechas de entregas reales vienen como encabezados de columna de la hoja
+// "Entregas" y pueden no calzar carácter a carácter con las fechas de lunes que
+// genera construirSemanasLogistica (distintos formatos, horas, etc.). Por eso
+// cada fecha real se "ancla" a la semana (lunes) que le corresponde en vez de
+// buscarla por coincidencia exacta de string, así ninguna entrega real se pierde.
+function semanaAncladaISO(fechaStr, semanas) {
+  const fecha = new Date(aFechaISO(fechaStr));
+  if (isNaN(fecha)) return null;
+  const iso = lunesDeSemana(fecha).toISOString().slice(0,10);
+  if (semanas.some(s => s.inicio === iso)) return iso;
+  // Si cae fuera del rango marzo-octubre, se clampea a la semana más cercana
+  // en vez de descartar el dato.
+  const ordenadas = [...semanas].sort((a,b)=>a.inicio.localeCompare(b.inicio));
+  if (!ordenadas.length) return null;
+  return iso < ordenadas[0].inicio ? ordenadas[0].inicio : ordenadas[ordenadas.length-1].inicio;
+}
+
 // Para cada campo (productor+campo+campaña): el tn de cada lote se asume
 // entregado en la semana posterior a su última cosecha informada. Si el
 // campo tiene entregas reales cargadas, esos tn se restan del default
@@ -1515,7 +1532,8 @@ function construirSemanasLogistica(anio) {
 // reales en su lugar.
 function calcularEntregasPorSemana(datos) {
   const ultima = ultimaPorLoteVisitas(datos);
-  const anio = anioCosechaDeCampana(campanaMasReciente());
+  const campanaDatos = datos.length ? datos[0].campana : campanaMasReciente();
+  const anio = anioCosechaDeCampana(campanaDatos);
   const semanas = construirSemanasLogistica(anio);
 
   const porCampo = {};
@@ -1530,7 +1548,8 @@ function calcularEntregasPorSemana(datos) {
     const tn = rinde * l.area_ha / 10;
     const semanaEntregaDefault = lunesDeSemana(fechaCosecha);
     semanaEntregaDefault.setDate(semanaEntregaDefault.getDate() + 7);
-    const isoDefault = semanaEntregaDefault.toISOString().slice(0,10);
+    const isoDefault = semanaAncladaISO(semanaEntregaDefault.toISOString().slice(0,10), semanas);
+    if (!isoDefault) return;
 
     const idc = idCampoDe(l);
     if (!porCampo[idc]) porCampo[idc] = {};
@@ -1542,7 +1561,15 @@ function calcularEntregasPorSemana(datos) {
 
   Object.keys(porCampo).forEach(idc => {
     const defaults = porCampo[idc];
-    const real = (entregasPorCampo[idc] && entregasPorCampo[idc].semanas) || {};
+    const realBruto = (entregasPorCampo[idc] && entregasPorCampo[idc].semanas) || {};
+    // Normalizamos las claves de fecha real a la semana anclada correspondiente
+    // antes de usarlas, para no perder entregas por desajustes de formato.
+    const real = {};
+    Object.keys(realBruto).forEach(iso => {
+      const ancla = semanaAncladaISO(iso, semanas);
+      if (!ancla) return;
+      real[ancla] = (real[ancla] || 0) + realBruto[iso];
+    });
     let restante = Object.values(real).reduce((a,b) => a+b, 0);
 
     Object.keys(defaults).sort().forEach(iso => {
