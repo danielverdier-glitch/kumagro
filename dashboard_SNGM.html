@@ -705,6 +705,22 @@ function aplicarUltimaFechaSiembra() {
   });
 }
 
+// Busca el último valor NO VACÍO de un campo en las visitas de cada lote.
+// Usado para campos que pueden estar vacíos en cargas masivas pero existían antes.
+function aplicarUltimoValorNoVacio(campoLote, campoBD) {
+  campoBD = campoBD || campoLote;
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v[campoBD]) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l[campoLote] = u[campoBD];
+  });
+}
+
 // ─── FILTROS ──────────────────────────────────────────────
 // Cada filtro acota las opciones de los demás: las opciones de un filtro
 // se calculan respetando las selecciones de TODOS los otros filtros
@@ -853,6 +869,21 @@ function ultimaPorLoteVisitas(datos) {
     if (!idsVisibles.has(v.id_lote)) return;
     const actual = ultima[v.id_lote];
     if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
+  });
+  // Rellenar campos vacíos con valores de registros anteriores
+  const camposARellenar = ['condicion_cultivo','observacion_plagas','estado_fenologico','estado_malezas','rinde_estimado_qqha'];
+  Object.keys(ultima).forEach(idLote=>{
+    camposARellenar.forEach(campo=>{
+      if (!ultima[idLote][campo]) {
+        for (let i = allVisitas.length-1; i >= 0; i--) {
+          const v = allVisitas[i];
+          if (v.id_lote === idLote && v[campo]) {
+            ultima[idLote][campo] = v[campo];
+            break;
+          }
+        }
+      }
+    });
   });
   return ultima;
 }
