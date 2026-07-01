@@ -116,13 +116,14 @@
       <table id="tabla-lotes">
         <thead>
           <tr id="thead-row">
+            <th data-col="tecnico">Técnico</th>
             <th data-col="productor">Productor</th><th data-col="region">Región</th><th data-col="nombre_campo">Campo</th><th data-col="lote">Lote</th>
             <th data-col="ha_plan">Has plan</th><th data-col="area_ha">Has inscriptas</th><th data-col="variedad">Variedad</th><th data-col="semilla_up">Semilla / UP</th>
             <th data-col="siembra">Siembra</th>
             <th data-col="sembrado">¿Sembrado?</th><th data-col="fecha_siembra">Fecha siembra</th>
             <th data-col="rinde">Rendimiento (qq/ha)</th><th data-col="produccion">Producción (tn)</th>
             <th data-col="fecha_cosecha">Fecha cosecha</th><th data-col="cosechado">¿Cosechado?</th>
-            <th data-col="tecnico">Técnico</th><th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody id="tabla-body">
@@ -387,6 +388,14 @@ function filaHTML(l) {
 
   return `
   <tr data-id-lote="${escAttr(l.id_lote)}" data-productor="${escAttr(l.productor)}" data-campo="${escAttr(l.nombre_campo)}" data-lote="${escAttr(l.lote)}" data-area-ha="${areaHa}">
+    <td>
+      <select class="f-tecnico" onchange="onTecnicoFilaChange(this)">
+        <option value="">Seleccioná...</option>
+        ${opcionesTecnico.map(o=>`<option value="${escAttr(o)}" ${o===tecnicoPrevio?'selected':''}>${o}</option>`).join('')}
+        <option value="${OTRO}">Otro...</option>
+      </select>
+      <input type="text" class="f-tecnico-otro campo-otro" placeholder="Nombre del técnico" style="display:none">
+    </td>
     <td>${l.productor||'—'}</td>
     <td>${l.region||'—'}</td>
     <td>${l.nombre_campo||'—'}</td>
@@ -412,14 +421,6 @@ function filaHTML(l) {
     <td class="col-produccion">${produccionPrevia.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
     <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
     <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
-    <td>
-      <select class="f-tecnico" onchange="onTecnicoFilaChange(this)">
-        <option value="">Seleccioná...</option>
-        ${opcionesTecnico.map(o=>`<option value="${escAttr(o)}" ${o===tecnicoPrevio?'selected':''}>${o}</option>`).join('')}
-        <option value="${OTRO}">Otro...</option>
-      </select>
-      <input type="text" class="f-tecnico-otro campo-otro" placeholder="Nombre del técnico" style="display:none">
-    </td>
     <td><button type="button" class="btn btn-primary" onclick="guardarFila(this)">Guardar</button></td>
   </tr>`;
 }
