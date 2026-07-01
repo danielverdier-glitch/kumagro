@@ -381,6 +381,17 @@
 
     <!-- TAB LOGÍSTICA -->
     <div class="tab-panel" id="tab-logistica">
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="margin:0;display:flex;align-items:center;gap:6px;width:auto;text-transform:none;letter-spacing:normal">
+            <span style="font-size:12px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em">Campaña</span>
+            <select id="logistica-campana-filter" onchange="cambiarCampanaLogistica(this.value)"
+              style="font-family:var(--font);font-size:13.5px;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;text-transform:none;letter-spacing:0;width:140px">
+            </select>
+          </label>
+        </div>
+      </div>
+
       <div class="card">
         <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
           <span>Entregas proyectadas (marzo a octubre)</span>
@@ -582,6 +593,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwUQNs0B3vYjF61
 let allLotes   = [];
 let allVisitas = [];
 let entregasPorCampo = {}; // id_campo -> { tn_embolse, semanas: {fechaInicioISO: tn} }, con el último valor cargado
+let campanaLogisticaSeleccionada = '';
 let activeTab  = 'principal';
 let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set(), siembra:new Set() };
 let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
@@ -648,6 +660,7 @@ async function cargarDatos() {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
   }
   construirFiltros();
+  inicializarFiltroLogistica();
   renderTabActiva();
 }
 
@@ -1620,6 +1633,25 @@ function renderChartCupoSemanal() {
       }
     }
   });
+}
+
+// ─── FILTRO DE CAMPAÑA PARA LOGÍSTICA ──────────────────────
+function inicializarFiltroLogistica() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort().reverse();
+  const select = document.getElementById('logistica-campana-filter');
+  select.innerHTML = campanas.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  // Si hay una campaña seleccionada en filtros generales, úsala; sino, la más reciente
+  const filtroGeneral = document.getElementById('filtros-container');
+  const campanaGeneralSelected = filtroGeneral ? filtroGeneral.querySelector('.filter-group[data-key="campana"] select')?.value : '';
+  campanaLogisticaSeleccionada = campanaGeneralSelected || campanaMasReciente();
+  select.value = campanaLogisticaSeleccionada;
+}
+
+function cambiarCampanaLogistica(campaña) {
+  campanaLogisticaSeleccionada = campaña;
+  const datosFiltradog = allLotes.filter(l => l.campana === campanaLogisticaSeleccionada);
+  renderLogistica(datosFiltradog);
 }
 
 // ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
