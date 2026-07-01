@@ -47,8 +47,8 @@
   td.col-tipo-up{color:var(--gh-green-dark);font-weight:700}
   tbody td{padding:8px 10px;vertical-align:middle;white-space:nowrap}
   td.col-cliente{font-weight:700;color:var(--gh-green-dark)}
-  td input[type=email]{min-width:190px;font-size:12.5px;padding:6px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:var(--font);outline:none}
-  td input[type=email]:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  td input.f-email{min-width:190px;font-size:12.5px;padding:6px 8px;border:1.5px solid var(--border);border-radius:7px;font-family:var(--font);outline:none}
+  td input.f-email:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
   .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
   .btn{padding:6px 14px;border-radius:7px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font);white-space:nowrap}
   .btn:active{transform:scale(.97)}
@@ -485,7 +485,7 @@ function filaHTML(cliente, tipo, est, esPrimeraDelCliente, esPrimeraDeCategoria,
   const emailValor = e.email || clienteDeLista(cliente).email || '';
   const acciones = esUltimaDeCategoria ? `
     <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(cliente)}','${escAttr(tipo)}')">${tieneConvenio(cliente, tipo) ? 'Regenerar' : 'Generar'}</button></td>
-    <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
+    <td><input type="text" class="f-email" placeholder="email@productor.com (podés separar varios con espacio, coma o ;)" value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
     <td>${tildeHTML(id, 'firmado')}</td>
@@ -903,14 +903,24 @@ function clienteDeClaveEstado(id) {
   return id.slice(0, id.lastIndexOf('||'));
 }
 
+// Separa varias direcciones en un mismo campo (la hoja de clientes trae
+// algunas celdas con más de un email, separadas por espacio, coma o punto y
+// coma) y valida cada una. Devuelve true solo si hay al menos una dirección
+// y todas son válidas.
+function emailsValidos(valor) {
+  const direcciones = String(valor||'').split(/[\s,;]+/).filter(Boolean);
+  return direcciones.length > 0 && direcciones.every(d => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d));
+}
+
 // Simula el envío del convenio por email. Todavía no dispara un email real:
-// solo valida que haya una dirección cargada y marca "Convenio enviado". Si
-// el email se corrigió acá, la corrección se guarda en la hoja de clientes
-// ("E-Mail para Contratos") para que quede disponible la próxima vez.
+// solo valida que haya una o más direcciones cargadas (separadas por espacio,
+// coma o punto y coma) y marca "Convenio enviado". Si el email se corrigió
+// acá, la corrección se guarda en la hoja de clientes ("E-Mail para
+// Contratos") para que quede disponible la próxima vez.
 function enviarConvenio(id) {
   const e = estadoDe(id);
-  if (!e.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email)) {
-    showToast('Cargá un email válido antes de enviar', true);
+  if (!emailsValidos(e.email)) {
+    showToast('Cargá una o más direcciones de email válidas antes de enviar', true);
     return;
   }
   e.enviado = true;
