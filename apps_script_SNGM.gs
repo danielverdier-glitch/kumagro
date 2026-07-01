@@ -23,6 +23,7 @@ const CLIENTES_SHEET_ID = '1-JMen__6QiKTKGwjc1EXuiXMwJtyCxvf';
 const COL_CLIENTE_NOMBRE     = 'Ficha de cliente Name';
 const COL_CLIENTE_CUIT       = 'Nº CUIT';
 const COL_CLIENTE_DIRECCION  = 'Direccion';
+const COL_CLIENTE_EMAIL      = 'E-Mail para Contratos';
 // Columnas propias del convenio (administrativo_SNGM.html): se crean solas
 // en la hoja la primera vez que hacen falta (ver asegurarColumnasClientes_).
 const COL_CLIENTE_REP_NOMBRE = 'Representante Nombre completo';
@@ -236,15 +237,20 @@ function doPost(e) {
         if (String(filas[i][iNombre] || '').trim().toLowerCase() === claveBuscada) { filaIdx = i + 1; break; }
       }
 
+      // Solo se escriben las columnas presentes en el payload (por ejemplo,
+      // enviarConvenio en administrativo_SNGM.html solo manda { email }): así
+      // una actualización parcial no pisa con vacío el resto de los datos
+      // ya guardados del cliente.
       const valoresPorColumna = {};
-      valoresPorColumna[COL_CLIENTE_NOMBRE]     = d.razonSocial;
-      valoresPorColumna[COL_CLIENTE_CUIT]       = d.cuit;
-      valoresPorColumna[COL_CLIENTE_DIRECCION]  = d.direccion;
-      valoresPorColumna[COL_CLIENTE_REP_NOMBRE] = d.nombreCompleto;
-      valoresPorColumna[COL_CLIENTE_REP_DNI]    = d.dni;
-      valoresPorColumna[COL_CLIENTE_REP_ROL]    = d.rol;
-      valoresPorColumna[COL_CLIENTE_PLAZO]      = d.plazo;
-      valoresPorColumna[COL_CLIENTE_COMISION]   = d.comision;
+      if (d.razonSocial     !== undefined) valoresPorColumna[COL_CLIENTE_NOMBRE]     = d.razonSocial;
+      if (d.cuit            !== undefined) valoresPorColumna[COL_CLIENTE_CUIT]       = d.cuit;
+      if (d.direccion       !== undefined) valoresPorColumna[COL_CLIENTE_DIRECCION]  = d.direccion;
+      if (d.nombreCompleto  !== undefined) valoresPorColumna[COL_CLIENTE_REP_NOMBRE] = d.nombreCompleto;
+      if (d.dni             !== undefined) valoresPorColumna[COL_CLIENTE_REP_DNI]    = d.dni;
+      if (d.rol             !== undefined) valoresPorColumna[COL_CLIENTE_REP_ROL]    = d.rol;
+      if (d.plazo           !== undefined) valoresPorColumna[COL_CLIENTE_PLAZO]      = d.plazo;
+      if (d.comision        !== undefined) valoresPorColumna[COL_CLIENTE_COMISION]   = d.comision;
+      if (d.email           !== undefined) valoresPorColumna[COL_CLIENTE_EMAIL]      = d.email;
 
       if (filaIdx === -1) {
         // No debería pasar (el cliente siempre viene de esta misma hoja),
@@ -434,6 +440,7 @@ function doGet(e) {
     const iRepRol     = indexColumna_(headers, COL_CLIENTE_REP_ROL);
     const iPlazo      = indexColumna_(headers, COL_CLIENTE_PLAZO);
     const iComision   = indexColumna_(headers, COL_CLIENTE_COMISION);
+    const iEmail      = indexColumna_(headers, COL_CLIENTE_EMAIL);
     const val = (r, i) => String(i > -1 && r[i] != null ? r[i] : '').trim();
     const data = rows.slice(1)
       .map(r => ({
@@ -444,7 +451,8 @@ function doGet(e) {
         dni: val(r, iRepDni),
         rol: val(r, iRepRol),
         plazo: val(r, iPlazo),
-        comision: val(r, iComision)
+        comision: val(r, iComision),
+        email: val(r, iEmail)
       }))
       .filter(c => c.razonSocial);
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);

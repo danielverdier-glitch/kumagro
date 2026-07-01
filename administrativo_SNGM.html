@@ -480,9 +480,12 @@ function agruparPorClienteCategoria() {
 function filaHTML(cliente, tipo, est, esPrimeraDelCliente, esPrimeraDeCategoria, esUltimaDeCategoria) {
   const id = claveEstado(cliente, tipo);
   const e = estadoDe(id);
+  // El email se trae de la hoja de clientes ("E-Mail para Contratos") si
+  // todavía no se corrigió/cargó uno en esta página.
+  const emailValor = e.email || clienteDeLista(cliente).email || '';
   const acciones = esUltimaDeCategoria ? `
     <td><button type="button" class="btn btn-secundario" onclick="abrirModalConvenio('${escAttr(cliente)}','${escAttr(tipo)}')">${tieneConvenio(cliente, tipo) ? 'Regenerar' : 'Generar'}</button></td>
-    <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(e.email)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
+    <td><input type="email" class="f-email" placeholder="email@productor.com" value="${escAttr(emailValor)}" oninput="onEmailInput('${escAttr(id)}', this.value)"></td>
     <td><button type="button" class="btn btn-primary" onclick="enviarConvenio('${escAttr(id)}')">Enviar</button></td>
     <td>${tildeHTML(id, 'enviado')}</td>
     <td>${tildeHTML(id, 'firmado')}</td>
@@ -894,8 +897,16 @@ async function confirmarGenerarConvenio() {
   renderTabla();
 }
 
+// id = claveEstado(cliente, tipo) = "cliente||tipo"; tipo nunca tiene "||",
+// así que separar por el ÚLTIMO "||" da la razón social aunque tenga "||".
+function clienteDeClaveEstado(id) {
+  return id.slice(0, id.lastIndexOf('||'));
+}
+
 // Simula el envío del convenio por email. Todavía no dispara un email real:
-// solo valida que haya una dirección cargada y marca "Convenio enviado".
+// solo valida que haya una dirección cargada y marca "Convenio enviado". Si
+// el email se corrigió acá, la corrección se guarda en la hoja de clientes
+// ("E-Mail para Contratos") para que quede disponible la próxima vez.
 function enviarConvenio(id) {
   const e = estadoDe(id);
   if (!e.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.email)) {
@@ -904,6 +915,16 @@ function enviarConvenio(id) {
   }
   e.enviado = true;
   guardarEstado();
+
+  const cliente = clienteDeClaveEstado(id);
+  fetch(APPS_SCRIPT_URL, {
+    method:'POST', mode:'no-cors',
+    body: JSON.stringify({ action:'actualizarCliente', data:{ clienteOriginal: cliente, email: e.email } })
+  }).catch(() => {});
+  const clienteCache = clienteDeLista(cliente);
+  clienteCache.email = e.email;
+  if (!clientesLista.includes(clienteCache)) clientesLista.push(clienteCache);
+
   renderTabla();
   showToast('Convenio "enviado" a ' + e.email + ' (simulado, falta conectar el envío real)');
 }
