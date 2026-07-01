@@ -7,9 +7,7 @@ const IMG_FOLDER   = '1J_RKGS1qDM-gdARQhwM6NuIN_FnQY0D9'; // carpeta de Drive pa
 // graba como PDF en la subcarpeta Convenios. Al ser Doc nativo se copia con
 // makeCopy (no hace falta el Servicio Avanzado de Drive ni convertir nada).
 const CONVENIO_TEMPLATE_ID = '1ghudeYpGsSd6Ccs76F0TUbGoBfK9Uk1SjT_Z-pIDsL0'; // Convenio_semilla (Google Doc)
-// TODO: reemplazar por el ID real de la plantilla de convenio UP (Google Doc)
-// cuando esté lista. Hasta entonces usa la misma plantilla que Semilla.
-const CONVENIO_TEMPLATE_UP_ID = CONVENIO_TEMPLATE_ID;
+const CONVENIO_TEMPLATE_UP_ID = '1pZYKy_8E-NF-vV0PXr_1IGzZma2a-epyWD5mnlRmBRM'; // Convenio_UP (Google Doc)
 const CONVENIOS_FOLDER     = '19-WOikRaRQmKh2rX1i2ZCzRgDPc66BMB'; // subcarpeta "Convenios" dentro de "Programa SNGM"
 
 // Elige la plantilla según el modelo de convenio (UP o Semilla).
@@ -24,8 +22,9 @@ function plantillaConvenio_(tipo) {
 // re-desplegar: el permiso queda concedido a nivel del proyecto).
 function autorizar() {
   const nombre = DocumentApp.openById(CONVENIO_TEMPLATE_ID).getName();
+  const nombreUp = DocumentApp.openById(CONVENIO_TEMPLATE_UP_ID).getName();
   DriveApp.getFolderById(CONVENIOS_FOLDER).getName();
-  return nombre; // si devuelve "Convenio_semilla", quedó autorizado OK
+  return nombre + ' / ' + nombreUp; // debería devolver "Convenio_semilla / Convenio_UP"
 }
 
 function doPost(e) {
