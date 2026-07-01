@@ -16,15 +16,35 @@ function plantillaConvenio_(tipo) {
 }
 
 // Base de clientes (carga_lote_SNGM.html → selector de Productor + botón
-// "Nuevo"). Vive en una Hoja de Google APARTE de SHEET_ID (convertida desde
-// "lista de clientes.xlsx"), con más columnas de las que usamos acá; solo
-// se leen/escriben "Ficha de cliente Name" (razón social) y "Nº CUIT".
+// "Nuevo"; administrativo_SNGM.html → modal de convenio). Vive en una Hoja
+// de Google APARTE de SHEET_ID (convertida desde "lista de clientes.xlsx"),
+// con más columnas de las que usamos acá.
 const CLIENTES_SHEET_ID = '1-JMen__6QiKTKGwjc1EXuiXMwJtyCxvf';
-const COL_CLIENTE_NOMBRE = 'Ficha de cliente Name';
-const COL_CLIENTE_CUIT   = 'Nº CUIT';
+const COL_CLIENTE_NOMBRE     = 'Ficha de cliente Name';
+const COL_CLIENTE_CUIT       = 'Nº CUIT';
+const COL_CLIENTE_DIRECCION  = 'Direccion';
+// Columnas propias del convenio (administrativo_SNGM.html): se crean solas
+// en la hoja la primera vez que hacen falta (ver asegurarColumnasClientes_).
+const COL_CLIENTE_REP_NOMBRE = 'Representante Nombre completo';
+const COL_CLIENTE_REP_DNI    = 'Representante DNI';
+const COL_CLIENTE_REP_ROL    = 'Representante Rol';
+const COL_CLIENTE_PLAZO      = 'Plazo entrega (dias)';
+const COL_CLIENTE_COMISION   = 'Comision (%)';
 
 function hojaClientes_() {
   return SpreadsheetApp.openById(CLIENTES_SHEET_ID).getSheets()[0];
+}
+
+// Agrega, si todavía no existen, las columnas propias del convenio al final
+// de la hoja de clientes (mismo patrón que las columnas de semana en
+// guardarEntrega): así no hace falta editar la planilla a mano.
+function asegurarColumnasClientes_(sheet) {
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const columnasConvenio = [COL_CLIENTE_REP_NOMBRE, COL_CLIENTE_REP_DNI, COL_CLIENTE_REP_ROL, COL_CLIENTE_PLAZO, COL_CLIENTE_COMISION];
+  const faltantes = columnasConvenio.filter(c => headers.indexOf(c) === -1);
+  if (faltantes.length) {
+    sheet.getRange(1, sheet.getLastColumn() + 1, 1, faltantes.length).setValues([faltantes]);
+  }
 }
 
 // Ejecutá esta función UNA vez desde el editor (dropdown de funciones →
@@ -185,6 +205,52 @@ function doPost(e) {
       sheet.appendRow(fila);
     }
 
+    // Usado por administrativo_SNGM.html al generar/regenerar un convenio:
+    // guarda los datos del cliente en la hoja "lista de clientes". Si se
+    // corrigió la razón social o el CUIT, ACTUALIZA la fila existente (no
+    // agrega una nueva); la fila a actualizar se identifica por
+    // "clienteOriginal" (la razón social con la que se abrió el modal, antes
+    // de cualquier corrección).
+    if (payload.action === 'actualizarCliente') {
+      const d = payload.data;
+      const sheet = hojaClientes_();
+      asegurarColumnasClientes_(sheet);
+      const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
+      const filas = sheet.getDataRange().getValues();
+      const claveBuscada = String(d.clienteOriginal || '').trim().toLowerCase();
+      let filaIdx = -1;
+      for (let i = 1; i < filas.length; i++) {
+        if (String(filas[i][iNombre] || '').trim().toLowerCase() === claveBuscada) { filaIdx = i + 1; break; }
+      }
+
+      const valoresPorColumna = {};
+      valoresPorColumna[COL_CLIENTE_NOMBRE]     = d.razonSocial;
+      valoresPorColumna[COL_CLIENTE_CUIT]       = d.cuit;
+      valoresPorColumna[COL_CLIENTE_DIRECCION]  = d.direccion;
+      valoresPorColumna[COL_CLIENTE_REP_NOMBRE] = d.nombreCompleto;
+      valoresPorColumna[COL_CLIENTE_REP_DNI]    = d.dni;
+      valoresPorColumna[COL_CLIENTE_REP_ROL]    = d.rol;
+      valoresPorColumna[COL_CLIENTE_PLAZO]      = d.plazo;
+      valoresPorColumna[COL_CLIENTE_COMISION]   = d.comision;
+
+      if (filaIdx === -1) {
+        // No debería pasar (el cliente siempre viene de esta misma hoja),
+        // pero por las dudas se agrega como fila nueva en vez de perder los datos.
+        const nuevaFila = new Array(headers.length).fill('');
+        Object.keys(valoresPorColumna).forEach(col => {
+          const idx = headers.indexOf(col);
+          if (idx > -1) nuevaFila[idx] = valoresPorColumna[col];
+        });
+        sheet.appendRow(nuevaFila);
+      } else {
+        Object.keys(valoresPorColumna).forEach(col => {
+          const idx = headers.indexOf(col);
+          if (idx > -1) sheet.getRange(filaIdx, idx + 1).setValue(valoresPorColumna[col]);
+        });
+      }
+    }
+
     // Usado por administrativo_SNGM.html: rellena la plantilla (Google Doc) con
     // los datos del formulario y graba el resultado COMO PDF en la subcarpeta
     // Convenios. El nombre lo arma el cliente: 2026_<cliente>_<Semilla|UP>.
@@ -337,21 +403,36 @@ function headersComoTexto(sheet) {
 function doGet(e) {
   const action = (e.parameter && e.parameter.action) || 'getLotes';
 
-  // Usado por carga_lote_SNGM.html para poblar el selector de Productor
-  // (razón social + CUIT de la hoja "lista de clientes").
+  // Usado por carga_lote_SNGM.html para poblar el selector de Productor, y
+  // por administrativo_SNGM.html para prellenar el modal de convenio con los
+  // datos guardados del cliente (domicilio, representante, plazo, comisión).
   if (action === 'getClientes') {
     const sheet = hojaClientes_();
+    asegurarColumnasClientes_(sheet);
     const rows = sheet.getDataRange().getValues();
     if (rows.length < 2) {
       return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
     }
     const headers = rows[0];
-    const iNombre = headers.indexOf(COL_CLIENTE_NOMBRE);
-    const iCuit   = headers.indexOf(COL_CLIENTE_CUIT);
+    const iNombre     = headers.indexOf(COL_CLIENTE_NOMBRE);
+    const iCuit       = headers.indexOf(COL_CLIENTE_CUIT);
+    const iDireccion  = headers.indexOf(COL_CLIENTE_DIRECCION);
+    const iRepNombre  = headers.indexOf(COL_CLIENTE_REP_NOMBRE);
+    const iRepDni     = headers.indexOf(COL_CLIENTE_REP_DNI);
+    const iRepRol     = headers.indexOf(COL_CLIENTE_REP_ROL);
+    const iPlazo      = headers.indexOf(COL_CLIENTE_PLAZO);
+    const iComision   = headers.indexOf(COL_CLIENTE_COMISION);
+    const val = (r, i) => String(i > -1 && r[i] != null ? r[i] : '').trim();
     const data = rows.slice(1)
       .map(r => ({
-        razonSocial: String(iNombre > -1 && r[iNombre] != null ? r[iNombre] : '').trim(),
-        cuit: String(iCuit > -1 && r[iCuit] != null ? r[iCuit] : '').trim()
+        razonSocial: val(r, iNombre),
+        cuit: val(r, iCuit),
+        direccion: val(r, iDireccion),
+        nombreCompleto: val(r, iRepNombre),
+        dni: val(r, iRepDni),
+        rol: val(r, iRepRol),
+        plazo: val(r, iPlazo),
+        comision: val(r, iComision)
       }))
       .filter(c => c.razonSocial);
     return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);

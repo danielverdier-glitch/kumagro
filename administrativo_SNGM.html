@@ -248,6 +248,11 @@ let estado = {}; // { cliente: { email, generado, enviado, firmado } }
 // Es la fuente de verdad de "convenio generado": el botón muestra "Regenerar"
 // solo si acá hay un archivo 2026_<cliente>_*.pdf para ese cliente.
 let conveniosExistentes = new Set();
+// Datos de la hoja "lista de clientes" (razón social, CUIT, domicilio,
+// representante, plazo, comisión). Es la fuente de verdad para prellenar el
+// modal de convenio: si el cliente tiene datos guardados ahí, se usan esos;
+// si no, se cargan los valores por defecto de siempre.
+let clientesLista = [];
 
 function escAttr(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
 function aFechaISO(v) {
@@ -345,17 +350,20 @@ function campanaMasReciente() {
 async function cargarDatos() {
   cargarEstado();
   try {
-    const [resLotes, resVisitas, resConvenios] = await Promise.all([
+    const [resLotes, resVisitas, resConvenios, resClientes] = await Promise.all([
       fetch(APPS_SCRIPT_URL + '?action=getLotes'),
       fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
-      fetch(APPS_SCRIPT_URL + '?action=getConvenios')
+      fetch(APPS_SCRIPT_URL + '?action=getConvenios'),
+      fetch(APPS_SCRIPT_URL + '?action=getClientes&_=' + Date.now(), { cache:'no-store' })
     ]);
     const data    = await resLotes.json();
     const visitas = await resVisitas.json();
     const convenios = await resConvenios.json();
+    const clientes  = await resClientes.json();
     allLotes   = Array.isArray(data) ? data : [];
     allVisitas = Array.isArray(visitas) ? visitas : [];
     conveniosExistentes = new Set((Array.isArray(convenios) ? convenios : []).map(n => String(n).toLowerCase()));
+    clientesLista = Array.isArray(clientes) ? clientes : [];
     document.getElementById('loading-bar').style.display = 'none';
   } catch(e) {
     document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
@@ -363,6 +371,13 @@ async function cargarDatos() {
   construirUltimaPorLote();
   await asegurarSemillaUpPorDefecto();
   renderTabla();
+}
+
+// Busca los datos guardados del cliente en la hoja "lista de clientes" por
+// razón social (case-insensitive). Devuelve {} si no se encontró.
+function clienteDeLista(razonSocial) {
+  const buscado = String(razonSocial||'').trim().toLowerCase();
+  return clientesLista.find(c => String(c.razonSocial||'').trim().toLowerCase() === buscado) || {};
 }
 
 function construirUltimaPorLote() {
@@ -620,6 +635,11 @@ function abrirModalConvenio(cliente, tipo) {
   const establecimientos = obtenerEstablecimientosCliente(cliente, tipo);
   if (!establecimientos.length) { showToast('No se encontró el cliente', true); return; }
   const variedades = obtenerVariedadesCliente(cliente, tipo);
+  // Prioridad: datos guardados en la hoja "lista de clientes" para esa razón
+  // social; si esa hoja no tiene el dato, se usa el valor precargado de
+  // siempre. La fecha y la campaña no se guardan en la planilla (cambian en
+  // cada convenio), así que siguen tomándose del último valor usado.
+  const clienteSheet = clienteDeLista(cliente);
   const e = estadoDe(claveEstado(cliente, tipo));
   const datosPrevios = e.formConvenio || {};
   clienteModalActual = cliente;
@@ -627,15 +647,15 @@ function abrirModalConvenio(cliente, tipo) {
 
   document.getElementById('conv-modal-sub').textContent = `${cliente} · ${tipo}`;
   document.getElementById('conv-fecha').value = datosPrevios.fecha || formatearFechaLarga(new Date());
-  document.getElementById('conv-razon-social').value = datosPrevios.razonSocial || cliente;
-  document.getElementById('conv-cuit').value = datosPrevios.cuit || '';
-  document.getElementById('conv-nombre-completo').value = datosPrevios.nombreCompleto || '';
-  document.getElementById('conv-dni').value = datosPrevios.dni || '';
-  document.getElementById('conv-rol').value = datosPrevios.rol || '';
-  document.getElementById('conv-domicilio').value = datosPrevios.domicilio || '';
+  document.getElementById('conv-razon-social').value = cliente;
+  document.getElementById('conv-cuit').value = clienteSheet.cuit || '';
+  document.getElementById('conv-nombre-completo').value = clienteSheet.nombreCompleto || '';
+  document.getElementById('conv-dni').value = clienteSheet.dni || '';
+  document.getElementById('conv-rol').value = clienteSheet.rol || '';
+  document.getElementById('conv-domicilio').value = clienteSheet.direccion || '';
   document.getElementById('conv-campana').value = datosPrevios.campana || campanaConvenioActual(new Date());
-  document.getElementById('conv-plazo').value = datosPrevios.plazo != null ? datosPrevios.plazo : 120;
-  document.getElementById('conv-comision').value = datosPrevios.comision != null ? datosPrevios.comision : 2;
+  document.getElementById('conv-plazo').value = (clienteSheet.plazo !== '' && clienteSheet.plazo != null) ? clienteSheet.plazo : 120;
+  document.getElementById('conv-comision').value = (clienteSheet.comision !== '' && clienteSheet.comision != null) ? clienteSheet.comision : 2;
 
   document.getElementById('conv-tabla-establecimientos').innerHTML = establecimientos.map(est => `
     <tr>
@@ -827,6 +847,39 @@ async function confirmarGenerarConvenio() {
   }).catch(() => {
     showToast('No se pudo generar el convenio (error de red)', true);
   });
+
+  // Guarda/actualiza los datos del cliente en la hoja "lista de clientes":
+  // si se corrigió la razón social o el CUIT, reemplaza el valor existente
+  // (no crea una fila nueva); domicilio, representante, plazo y comisión
+  // quedan persistidos para prellenar el próximo convenio de este cliente.
+  // clienteOriginal identifica la fila a actualizar (la razón social con la
+  // que se abrió el modal, antes de cualquier corrección).
+  fetch(APPS_SCRIPT_URL, {
+    method:'POST', mode:'no-cors',
+    body: JSON.stringify({
+      action:'actualizarCliente',
+      data:{
+        clienteOriginal: cliente,
+        razonSocial: formConvenio.razonSocial,
+        cuit: formConvenio.cuit,
+        direccion: formConvenio.domicilio,
+        nombreCompleto: formConvenio.nombreCompleto,
+        dni: formConvenio.dni,
+        rol: formConvenio.rol,
+        plazo: formConvenio.plazo,
+        comision: formConvenio.comision
+      }
+    })
+  }).catch(() => {});
+
+  // Actualiza la caché local para que quede consistente sin esperar a recargar.
+  const clienteCache = clienteDeLista(cliente);
+  Object.assign(clienteCache, {
+    razonSocial: formConvenio.razonSocial, cuit: formConvenio.cuit, direccion: formConvenio.domicilio,
+    nombreCompleto: formConvenio.nombreCompleto, dni: formConvenio.dni, rol: formConvenio.rol,
+    plazo: formConvenio.plazo, comision: formConvenio.comision
+  });
+  if (!clientesLista.includes(clienteCache)) clientesLista.push(clienteCache);
 
   // El POST va con no-cors (no se puede leer la respuesta), así que asumimos
   // que el PDF se va a crear y agregamos su nombre al set para que el botón
