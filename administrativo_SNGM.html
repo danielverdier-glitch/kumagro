@@ -337,6 +337,11 @@ function tieneConvenio(cliente) {
   return false;
 }
 
+function campanaMasReciente() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanas[campanas.length-1];
+}
+
 // ─── CARGA DE DATOS ───────────────────────────────────────
 async function cargarDatos() {
   cargarEstado();
@@ -358,6 +363,10 @@ async function cargarDatos() {
   }
   construirUltimaPorLote();
   await asegurarSemillaUpPorDefecto();
+  renderTabla();
+  // Recién ahora existen las <option> de campaña en el select: se puede
+  // preseleccionar la más reciente y volver a renderizar ya filtrado.
+  document.getElementById('f-campana').value = campanaMasReciente();
   renderTabla();
 }
 
