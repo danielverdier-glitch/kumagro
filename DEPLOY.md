@@ -106,6 +106,36 @@ programa":
 Guardar la clave en `%APPDATA%\postgresql\pgpass.conf` como
 `localhost:5432:kumagro:kumagro:LACLAVE` para que no la pida.
 
+## Fase 2 — Autogestión del productor (carga de lotes por el cliente)
+
+Proyecto: que cada productor cargue **sus propios lotes** (datos + KMZ) desde
+un formulario público, sin VPN, en vez de que los cargue el equipo interno.
+
+Diseño acordado (no bloqueante para la puesta en marcha; se construye una
+vez que el sistema interno esté estable):
+
+- **Dos zonas en el mismo servidor**: las páginas internas y la API siguen
+  siendo solo-VPN/Tailscale; se expone públicamente (HTTPS, puerto 443) solo
+  un HTML de carga de lotes + su endpoint mínimo. El reverse proxy decide
+  qué ruta es pública; el resto no responde desde Internet.
+- **Links con token por productor**: no hay URL pública "abierta". Desde la
+  página administrativa se genera un link único por productor
+  (`/cliente/carga?t=<token>`), con vencimiento. El token identifica al
+  productor: el formulario ya sabe quién es y solo puede cargar lotes suyos.
+- **Staging con aprobación**: lo que carga el productor va a una tabla
+  `lotes_solicitudes` (pendiente/aprobado/rechazado), NUNCA directo a
+  `lotes`. El equipo revisa cada solicitud en una pantalla nueva de la
+  página administrativa (ver el polígono del KMZ en el mapa, corregir
+  campos) y al aprobar recién se inserta en `lotes` (pasando por las mismas
+  validaciones y el anti-duplicado de siempre).
+- **Higiene del endpoint público**: HTTPS automático (Caddy/Let's Encrypt),
+  rate limiting por IP, validación estricta de campos, tamaño máximo de
+  upload acotado (el KMZ del cliente, no los 50 MB de la API interna),
+  y solo se aceptan archivos .kmz/.kml (se parsean y validan en el servidor
+  antes de guardar).
+- La firma de convenios NO necesita nada de esto: Adobe Sign ya le manda el
+  email al productor y firma en la página de Adobe.
+
 ## Pendientes conocidos
 
 - **Plantillas del convenio**: `backend\plantillas\convenio_semilla.html` y
