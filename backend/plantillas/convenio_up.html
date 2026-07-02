@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: 'Times New Roman', serif; font-size: 11pt; line-height: 1.5; color: #000; }
+  h1 { font-size: 13pt; text-align: center; text-transform: uppercase; }
+  p { text-align: justify; }
+  .firma { margin-top: 3cm; display: flex; justify-content: space-between; }
+  .firma div { width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 4px; }
+</style>
+</head>
+<body>
+  <!--
+    PLANTILLA PLACEHOLDER — reemplazar este contenido por el texto legal real
+    del Google Doc "Convenio_UP", conservando los marcadores {{...}}.
+    Marcadores disponibles: {{fecha}} {{razonsocial}} {{cuit}} {{nombrecompleto}}
+    {{dni}} {{rol}} {{domicilio}} {{direccion}} {{hastotales}} {{provincia}}
+    {{departamento}} {{coordenadas}} {{establecimiento}} {{kilos}} {{variedad}}
+    {{plazo}} {{comision}} {{imagen}}
+  -->
+  <h1>Convenio UP</h1>
+  <p>En la fecha {{fecha}}, entre <strong>{{razonsocial}}</strong> (CUIT {{cuit}}),
+  con domicilio en {{domicilio}}, representada por {{nombrecompleto}} (DNI {{dni}},
+  en carácter de {{rol}}), en adelante "el Productor", se conviene lo siguiente:</p>
+
+  <p><strong>PRIMERA:</strong> El Productor destinará {{hastotales}} hectáreas del
+  establecimiento "{{establecimiento}}", ubicado en {{departamento}},
+  provincia de {{provincia}} (coordenadas {{coordenadas}}), a la multiplicación
+  de la variedad {{variedad}}, recibiendo {{kilos}} kilos de semilla.</p>
+
+  <p><strong>SEGUNDA:</strong> El plazo máximo de entrega será de {{plazo}} y la
+  comisión de comercialización será del {{comision}}%.</p>
+
+  <p><strong>SÉPTIMA:</strong> A todos los efectos, el Productor constituye
+  domicilio en {{direccion}}.</p>
+
+  <div class="firma">
+    <div>Por el Productor</div>
+    <div>Por Grobocopatel Hnos.</div>
+  </div>
+
+  <div style="page-break-before: always;">
+    <h1>Anexo I — Plano del establecimiento</h1>
+    {{imagen}}
+  </div>
+</body>
+</html>

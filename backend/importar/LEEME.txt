@@ -1,0 +1,1 @@
+Poner aquí lotes.csv, visitas.csv, entregas.csv y clientes.csv (ver DEPLOY.md)

@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Dashboard SNGM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --lote-blue:#1a56db; --lote-blue-fill:rgba(26,86,219,0.5);
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{overflow-x:hidden;max-width:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px;
+    position:sticky;top:0;z-index:60}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+
+  .dash-layout{display:flex;align-items:flex-start;max-width:100%;overflow-x:hidden}
+  .sidebar{width:260px;min-width:260px;background:var(--surface);border-right:1px solid var(--border);
+    position:sticky;top:0;height:100vh;overflow-y:auto;padding:22px 18px 40px}
+  .sidebar h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gh-green-dark);margin-bottom:18px}
+  .filter-group{margin-bottom:14px}
+  .filter-dropdown-btn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;
+    padding:9px 11px;border:1.5px solid var(--border);border-radius:7px;background:white;cursor:pointer;
+    font-family:var(--font);font-size:12.5px;font-weight:600;color:var(--text);text-align:left}
+  .filter-dropdown-btn:hover{border-color:var(--gh-green)}
+  .filter-group.open .filter-dropdown-btn{border-color:var(--gh-green);background:var(--gh-green-light)}
+  .filter-dropdown-btn .arrow{font-size:10px;color:var(--text-soft);transition:transform .15s}
+  .filter-group.open .filter-dropdown-btn .arrow{transform:rotate(180deg)}
+  .filter-dropdown-btn .badge-count{font-size:10.5px;font-weight:700;color:var(--gh-green-dark);background:var(--gh-green-light);border-radius:10px;padding:1px 7px;white-space:nowrap}
+  .filter-group.open .filter-dropdown-btn .badge-count{background:white}
+  .filter-dropdown-panel{display:none;margin-top:6px;padding:10px;border:1.5px solid var(--border);border-radius:7px;background:var(--bg)}
+  .filter-group.open .filter-dropdown-panel{display:block}
+  .filter-search{width:100%;padding:6px 9px;margin-bottom:6px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-family:var(--font);outline:none}
+  .filter-search:focus{border-color:var(--gh-green)}
+  .filter-list{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+  .filter-item{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text)}
+  .filter-item input{accent-color:var(--gh-green);cursor:pointer}
+  .filter-item label{margin:0;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .btn-clear-filtros{width:100%;padding:8px;border-radius:7px;border:1.5px solid var(--border);background:white;color:var(--text-soft);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font)}
+  .btn-clear-filtros:hover{background:var(--bg)}
+
+  .main{flex:1;padding:26px 30px 60px;min-width:0}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:22px}
+
+  .tabs{display:flex;gap:6px;align-items:flex-end;border-bottom:2.5px solid var(--gh-green);
+    margin:0 -30px 22px;padding:14px 30px 0;background:var(--bg);position:sticky;top:53px;z-index:50}
+  .tab-btn{padding:11px 18px;font-size:13px;font-weight:700;background:#e4e9e1;border:1.5px solid var(--border);
+    border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;color:var(--text-soft);
+    transition:background .15s,color .15s,transform .1s;position:relative;top:2px}
+  .tab-btn:hover{background:#d8e3d3;color:var(--text)}
+  .tab-btn.active{background:var(--gh-green);color:white;border-color:var(--gh-green);top:0;
+    box-shadow:0 -2px 6px rgba(0,0,0,.08)}
+  .tab-panel{display:none}.tab-panel.active{display:block}
+  .tab-label-mobile{display:none}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .avance-indicador{text-align:center}
+  .avance-label{font-size:12px;font-weight:700;color:var(--text-soft);margin-bottom:6px}
+  .avance-pct-grande{font-size:36px;font-weight:800;color:var(--gh-green-dark)}
+  .avance-pct-chica{font-size:11.5px;color:var(--text-soft);margin-top:6px}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:18px}
+  .grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:18px}
+
+  .kpi-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;text-align:center}
+  .kpi-value{font-size:38px;font-weight:800;color:var(--gh-green-dark);line-height:1}
+  .kpi-unit{font-size:14px;color:var(--gh-green);font-weight:700;margin-left:4px}
+  .kpi-label{font-size:11.5px;color:var(--text-soft);text-transform:uppercase;letter-spacing:.05em;margin-top:8px}
+  .kpi-sub{font-size:12px;color:var(--text-soft);margin-top:10px}
+
+  .gauge-box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px}
+  .gauge-semi{position:relative;width:200px;height:100px;overflow:hidden}
+  .gauge-semi::before{content:"";position:absolute;top:0;left:0;width:200px;height:200px;border-radius:50%;
+    background:conic-gradient(from 180deg, var(--gh-green-dark) 0% var(--gauge-firmado-half,0%), var(--gh-green-light) var(--gauge-firmado-half,0%) 50%, transparent 50% 100%)}
+  .gauge-needle{position:absolute;left:50%;bottom:0;width:2px;height:84px;background:#b33;transform-origin:bottom center;
+    transform:rotate(calc(var(--gauge-enviado-deg,-90deg)));border-radius:2px}
+  .gauge-needle::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:#b33;
+    border-radius:50%;transform:translateX(-50%)}
+  .gauge-labels{display:flex;gap:18px;font-size:12px;color:var(--text-soft)}
+  .gauge-labels b{color:var(--text)}
+  .gauge-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .gauge-dot-firmado{background:var(--gh-green-dark)}
+  .gauge-dot-enviado{background:#b33}
+
+  .rank-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;font-size:12.5px}
+  .rank-pos{min-width:18px;color:var(--text-soft);font-weight:700}
+  .rank-name{min-width:110px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+  .rank-bar-wrap{flex:1;background:var(--bg);border-radius:6px;height:10px;overflow:hidden}
+  .rank-bar{height:100%;background:linear-gradient(90deg,var(--gh-green),var(--gh-green-dark));border-radius:6px}
+  .rank-val{min-width:78px;text-align:right;font-weight:700;color:var(--text)}
+  .empty-msg{text-align:center;color:var(--text-soft);font-style:italic;font-size:13px;padding:20px}
+
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody tr:hover{background:var(--gh-green-light)}
+  tbody td{padding:9px 12px;color:var(--text);vertical-align:middle;white-space:nowrap}
+
+  #map-lotes{height:560px;border-radius:8px;border:1.5px solid var(--border)}
+  .chart-wrap{position:relative}
+  #chart-pie-wrap{height:230px}
+  #chart-pie-siembra-wrap{height:230px}
+  .semaforo-row{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+  .semaforo-housing{display:flex;flex-direction:column;align-items:center;gap:9px;background:linear-gradient(145deg,#2b2b2b,#1a1a1a);border:2px solid #0d0d0d;border-radius:16px;padding:12px 10px;box-shadow:0 3px 8px rgba(0,0,0,.25)}
+  .semaforo-pole-top,.semaforo-pole-bottom{width:6px;height:8px;background:#0d0d0d;border-radius:2px}
+  .semaforo-light-slot{width:30px;height:30px;border-radius:50%;background:#000;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 4px rgba(0,0,0,.6)}
+  .semaforo-dot{width:22px;height:22px;border-radius:50%;display:inline-block;background:#3a3a3a;box-shadow:inset 0 0 3px rgba(0,0,0,.5);transition:background .2s,box-shadow .2s}
+  .semaforo-dot.encendido.semaforo-verde{background:#2e9e44;box-shadow:0 0 10px 3px rgba(46,158,68,.85)}
+  .semaforo-dot.encendido.semaforo-amarillo{background:#e0b400;box-shadow:0 0 10px 3px rgba(224,180,0,.85)}
+  .semaforo-dot.encendido.semaforo-rojo{background:#c0392b;box-shadow:0 0 10px 3px rgba(192,57,43,.85)}
+  .semaforo-info{display:flex;flex-direction:column;gap:9px;justify-content:center}
+  .semaforo-item{display:flex;align-items:center;gap:8px}
+  .semaforo-count{font-size:17px;font-weight:700;color:var(--text);min-width:24px}
+  .semaforo-label{font-size:11.5px;color:var(--text-soft)}
+  #chart-linea-wrap{height:190px}
+  #chart-cosecha-principal-wrap{height:220px}
+  #chart-avance-wrap{height:220px}
+  #chart-campanas-wrap{height:380px}
+  #seg-chart-condicion-wrap,#seg-chart-fenologico-wrap{height:230px}
+  #seg-chart-pronostico-wrap{height:260px}
+  #seg-chart-cosecha-wrap{height:230px}
+
+  .cosecha-flex-row{display:flex;align-items:stretch;gap:18px}
+  .cosecha-flex-row .chart-wrap{flex:1;min-width:0}
+  .termometro-col{display:flex;flex-direction:column;align-items:center;width:54px;flex-shrink:0}
+  .termometro-tubo{position:relative;width:24px;flex:1;background:var(--bg);border-radius:12px;border:1px solid var(--border);margin:8px 0}
+  .termometro-mercurio{position:absolute;left:1px;right:1px;bottom:1px;height:0;background:linear-gradient(to top,#8c1a10,#e8392b);border-radius:0 0 11px 11px;transition:height .4s ease}
+  .termometro-linea{position:absolute;left:-7px;right:-7px;height:3px;background:#e8392b;bottom:0;box-shadow:0 0 0 1px #fff,0 0 4px rgba(232,57,43,.7)}
+  .termometro-linea-label{position:absolute;left:100%;margin-left:6px;font-size:10.5px;font-weight:700;color:#e8392b;white-space:nowrap;transform:translateY(-50%)}
+  .termometro-leyenda{font-size:10.5px;color:var(--text-soft);text-align:center;line-height:1.4}
+  .termometro-leyenda b{color:var(--text)}
+
+  .progress-wrap{width:100%;max-width:260px;background:var(--bg);border-radius:8px;height:14px;overflow:hidden;margin-top:10px;border:1px solid var(--border)}
+  .progress-bar{height:100%;background:linear-gradient(90deg,var(--gh-green),var(--gh-green-dark));border-radius:8px;width:0;transition:width .3s}
+  .grid-fenologico{display:grid;grid-template-columns:1fr 150px;gap:14px;align-items:center}
+  .planta-box{display:flex;flex-direction:column;align-items:center;text-align:center}
+  .planta-label{font-size:12px;color:var(--text-soft);margin-top:8px}
+  @media(max-width:900px){.grid-fenologico{grid-template-columns:1fr}}
+
+  .dev-placeholder{padding:70px 20px;text-align:center;color:var(--text-soft)}
+  .dev-placeholder .icon{font-size:42px;margin-bottom:14px}
+  .dev-placeholder strong{display:block;font-size:16px;color:var(--gh-green-dark);margin-bottom:6px}
+
+  #loading-bar{background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark);margin-bottom:16px}
+
+  .filtros-toggle-mobile{display:none}
+
+  @media(max-width:900px){
+    .dash-layout{flex-direction:column}
+    .sidebar{width:100%;min-width:0;position:relative;height:auto;padding:14px}
+    .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+
+    header{padding:10px 14px;flex-wrap:wrap}
+    .main{padding:14px 12px 40px}
+    .card{padding:14px}
+    table{font-size:12px}
+    thead th,tbody td{padding:7px 8px}
+    .semaforo-row{flex-wrap:wrap;gap:14px}
+
+    .sidebar-title-desktop{display:none}
+    .filtros-toggle-mobile{display:flex;width:100%;justify-content:space-between;align-items:center;
+      padding:11px 14px;background:var(--gh-green-light);border:1.5px solid var(--border);border-radius:8px;
+      font-size:13px;font-weight:700;color:var(--gh-green-dark);font-family:var(--font);cursor:pointer;margin-bottom:0}
+    .filtros-toggle-mobile .arrow{font-size:11px;transition:transform .15s}
+    .sidebar.filtros-open .filtros-toggle-mobile .arrow{transform:rotate(180deg)}
+    #filtros-body{display:none;margin-top:12px}
+    .sidebar.filtros-open #filtros-body{display:block}
+
+    .tabs{position:static;flex-wrap:nowrap;gap:3px;margin:0 -12px 16px;padding:10px 12px 0;max-width:100%}
+    .tab-btn{padding:8px 2px;font-size:9.5px;flex:1;min-width:0;text-align:center}
+    .tab-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .tab-btn .tab-label-full{display:none}
+    .tab-btn .tab-label-mobile{display:block}
+
+    .main{overflow-x:hidden;max-width:100%}
+    .card{max-width:100%}
+    .table-wrap{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+
+    .kpi-box{padding:4px 0 6px}
+    .kpi-value{font-size:32px}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Dashboard</div>
+</header>
+
+<div class="dash-layout">
+
+  <!-- Sidebar filtros -->
+  <aside class="sidebar" id="sidebar-filtros">
+    <h2 class="sidebar-title-desktop">Filtros</h2>
+    <button type="button" class="filtros-toggle-mobile" onclick="toggleFiltrosMobile()">
+      <span>Filtros</span><span class="arrow">▾</span>
+    </button>
+    <div id="filtros-body">
+      <div id="filtros-container">
+        <!-- los grupos se generan dinámicamente -->
+      </div>
+      <button class="btn-clear-filtros" onclick="limpiarFiltros()">Limpiar filtros</button>
+    </div>
+  </aside>
+
+  <!-- Contenido principal -->
+  <main class="main">
+    <div id="loading-bar">Cargando datos del programa...</div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchDashTab('principal')"><span class="tab-label-full">Principal</span><span class="tab-label-mobile">Principal</span></button>
+      <button class="tab-btn" onclick="switchDashTab('seguimiento')"><span class="tab-label-full">Seguimiento</span><span class="tab-label-mobile">Seguimiento</span></button>
+      <button class="tab-btn" onclick="switchDashTab('mapa')"><span class="tab-label-full">Mapa de lotes</span><span class="tab-label-mobile">Mapa</span></button>
+      <button class="tab-btn" onclick="switchDashTab('comparativo')"><span class="tab-label-full">Comparativo entre campañas</span><span class="tab-label-mobile">Comparativo</span></button>
+      <button class="tab-btn" onclick="switchDashTab('logistica')"><span class="tab-label-full">Logística</span><span class="tab-label-mobile">Logística</span></button>
+      <button class="tab-btn" onclick="switchDashTab('visitas')"><span class="tab-label-full">Visitas</span><span class="tab-label-mobile">Visitas</span></button>
+      <button class="tab-btn" onclick="switchDashTab('campos')"><span class="tab-label-full">Campos</span><span class="tab-label-mobile">Campos</span></button>
+    </div>
+
+    <!-- TAB PRINCIPAL -->
+    <div class="tab-panel active" id="tab-principal">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Hectáreas cargadas</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="kpi-ha">0</span><span class="kpi-unit">ha</span></div>
+            <div class="kpi-label" id="kpi-ha-plan">Plan: 0 ha</div>
+            <div class="kpi-label" id="kpi-tn">0 tn estimadas</div>
+            <div class="kpi-sub" id="kpi-lotes">0 lotes</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Convenios firmados / enviados</div>
+          <div class="gauge-box">
+            <div class="gauge-semi" id="gauge-convenios"><div class="gauge-needle" id="gauge-convenios-needle"></div></div>
+            <div class="gauge-labels">
+              <span><span class="gauge-dot gauge-dot-firmado"></span>Firmados: <b id="gauge-firmado-pct">0%</b></span>
+              <span><span class="gauge-dot gauge-dot-enviado"></span>Enviados: <b id="gauge-enviado-pct">0%</b></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">Has. por variedad</div>
+          <div class="chart-wrap" id="chart-pie-wrap"><canvas id="chart-pie"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Has. por siembra (1ra/2da)</div>
+          <div class="chart-wrap" id="chart-pie-siembra-wrap"><canvas id="chart-pie-siembra"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Ranking geográfico (ha)</span>
+            <select id="rank-geo-select" onchange="cambiarRankingGeo(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="region">Región</option>
+              <option value="provincia">Provincia</option>
+            </select>
+          </div>
+          <div id="rank-provincias"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Siembra</div>
+        <div class="chart-wrap" id="chart-linea-wrap"><canvas id="chart-linea"></canvas></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Evolución de la cosecha</span>
+            <select id="principal-chart-cosecha-unidad" onchange="cambiarUnidadPrincipalCosecha(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="pct">% avance</option>
+              <option value="ha">Hectáreas</option>
+              <option value="tn">Toneladas</option>
+            </select>
+          </div>
+          <div class="cosecha-flex-row">
+            <div class="chart-wrap" id="chart-cosecha-principal-wrap"><canvas id="chart-cosecha-principal"></canvas></div>
+            <div class="termometro-col">
+              <div class="termometro-tubo">
+                <div class="termometro-mercurio" id="principal-termometro-mercurio"></div>
+                <div class="termometro-linea" id="principal-termometro-linea">
+                  <span class="termometro-linea-label" id="principal-termometro-linea-label"></span>
+                </div>
+              </div>
+              <div class="termometro-leyenda" id="principal-termometro-leyenda">Confirmado<br><b>0%</b></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Avance (al día de hoy)</div>
+          <div class="grid-2" style="gap:14px">
+            <div class="avance-indicador">
+              <div class="avance-label">Siembra</div>
+              <div class="avance-pct-grande" id="avance-siembra-pct">—</div>
+              <div class="avance-pct-chica" id="avance-siembra-pend">—</div>
+            </div>
+            <div class="avance-indicador">
+              <div class="avance-label">Cosecha</div>
+              <div class="avance-pct-grande" id="avance-cosecha-pct">—</div>
+              <div class="avance-pct-chica" id="avance-cosecha-pend">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ranking de productores (ha)</div>
+        <div id="rank-productores"></div>
+      </div>
+    </div>
+
+    <!-- TAB MAPA DE LOTES -->
+    <div class="tab-panel" id="tab-mapa">
+      <div class="card">
+        <div class="card-title">Todos los lotes</div>
+        <div id="map-lotes"></div>
+      </div>
+    </div>
+
+    <!-- TAB COMPARATIVO -->
+    <div class="tab-panel" id="tab-comparativo">
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Cargadas por campaña</span>
+          <select id="chart-campanas-unidad" onchange="cambiarUnidadChartCampanas(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-campanas-wrap"><canvas id="chart-campanas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Evolución de siembras</span>
+          <select id="chart-siembras-unidad" onchange="cambiarUnidadChartSiembras(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="pct">% avance</option>
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-siembras-wrap"><canvas id="chart-siembras"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Evolución de cosechas</span>
+          <select id="chart-cosechas-unidad" onchange="cambiarUnidadChartCosechas(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="pct">% avance</option>
+            <option value="ha">Hectáreas</option>
+            <option value="tn">Toneladas</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-cosechas-wrap"><canvas id="chart-cosechas"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB LOGÍSTICA -->
+    <div class="tab-panel" id="tab-logistica">
+      <div class="card" style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <label style="margin:0;display:flex;align-items:center;gap:6px;width:auto;text-transform:none;letter-spacing:normal">
+            <span style="font-size:12px;font-weight:600;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em">Campaña</span>
+            <select id="logistica-campana-filter" onchange="cambiarCampanaLogistica(this.value)"
+              style="font-family:var(--font);font-size:13.5px;border:1.5px solid var(--border);border-radius:7px;padding:7px 10px;text-transform:none;letter-spacing:0;width:140px">
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+          <span>Entregas proyectadas (marzo a octubre)</span>
+          <select id="chart-logistica-entregas-unidad" onchange="cambiarUnidadChartLogistica(this.value)"
+            style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+            <option value="tn" selected>Toneladas</option>
+            <option value="pct">% avance</option>
+          </select>
+        </div>
+        <div class="chart-wrap" id="chart-logistica-entregas-wrap"><canvas id="chart-logistica-entregas"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Cupo de camiones por semana (30 tn c/u)</div>
+        <div class="chart-wrap" id="chart-logistica-cupo-wrap"><canvas id="chart-logistica-cupo"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB VISITAS -->
+    <div class="tab-panel" id="tab-visitas">
+      <div class="card">
+        <div class="card-title">Visitas</div>
+        <div class="table-wrap">
+          <table id="tabla-seguimiento">
+            <thead>
+              <tr>
+                <th>Productor</th><th>Campo</th><th>Lote</th><th>Fecha visita</th>
+                <th>¿Sembrado?</th><th>Fecha siembra</th><th>Fecha est. cosecha</th>
+                <th>Est. fenológico</th><th>Est. malezas</th>
+                <th>Resistentes</th><th>Plagas / enfermedades</th><th>Condición</th>
+                <th>Rinde est.</th><th>Notas</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-seguimiento-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB CAMPOS -->
+    <div class="tab-panel" id="tab-campos">
+      <div class="card">
+        <div class="card-title">Lotes con su último dato cargado</div>
+        <div class="table-wrap">
+          <table id="tabla-campos">
+            <thead>
+              <tr>
+                <th>Productor</th><th>Campo</th><th>Lote</th><th>Has. inscriptas</th><th>Fecha siembra</th>
+                <th>Rendimiento (qq/ha)</th><th>Producción (Tn)</th>
+                <th>Fecha cosecha</th><th>Condición</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-campos-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB SEGUIMIENTO -->
+    <div class="tab-panel" id="tab-seguimiento">
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="card-title">Has. inscriptas</div>
+          <div class="kpi-box" style="height:auto">
+            <div><span class="kpi-value" id="seg-kpi-ha">0</span><span class="kpi-unit">ha</span></div>
+            <div class="progress-wrap"><div class="progress-bar" id="seg-ha-bar"></div></div>
+            <div class="kpi-sub" id="seg-ha-sub">0% sembrado</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Visitas realizadas</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="seg-kpi-visitas">0</span></div>
+            <div class="kpi-label">Visitas registradas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Actualización de datos</span>
+            <select id="semaforo-unidad-select" onchange="cambiarSemaforoUnidad(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="ha">Hectáreas</option>
+              <option value="lotes">Cantidad de lotes</option>
+              <option value="productores">Cantidad de productores</option>
+            </select>
+          </div>
+          <div class="semaforo-row" id="seg-semaforo" title="Antigüedad del último dato cargado por lote (visita o carga masiva)">
+            <div class="semaforo-housing">
+              <div class="semaforo-pole-top"></div>
+              <div class="semaforo-light-slot">
+                <span class="semaforo-dot semaforo-verde" id="seg-semaforo-dot-verde"></span>
+              </div>
+              <div class="semaforo-light-slot">
+                <span class="semaforo-dot semaforo-amarillo" id="seg-semaforo-dot-amarillo"></span>
+              </div>
+              <div class="semaforo-light-slot">
+                <span class="semaforo-dot semaforo-rojo" id="seg-semaforo-dot-rojo"></span>
+              </div>
+              <div class="semaforo-pole-bottom"></div>
+            </div>
+            <div class="semaforo-info">
+              <div class="semaforo-item">
+                <span class="semaforo-count" id="seg-semaforo-verde">0</span>
+                <span class="semaforo-label">≤10 días</span>
+              </div>
+              <div class="semaforo-item">
+                <span class="semaforo-count" id="seg-semaforo-amarillo">0</span>
+                <span class="semaforo-label">10-20 días</span>
+              </div>
+              <div class="semaforo-item">
+                <span class="semaforo-count" id="seg-semaforo-rojo">0</span>
+                <span class="semaforo-label">+20 días</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Pronóstico de rendimiento</div>
+          <div class="kpi-box">
+            <div><span class="kpi-value" id="seg-kpi-rinde">0</span><span class="kpi-unit">qq/ha</span></div>
+            <div class="kpi-label">Promedio ponderado por ha</div>
+            <div class="kpi-sub" id="seg-kpi-tn">0 Tn totales</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Condición del cultivo</div>
+          <div class="chart-wrap" id="seg-chart-condicion-wrap"><canvas id="seg-chart-condicion"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-title">Estado fenológico</div>
+          <div class="grid-fenologico">
+            <div class="chart-wrap" id="seg-chart-fenologico-wrap"><canvas id="seg-chart-fenologico"></canvas></div>
+            <div class="planta-box">
+              <div id="planta-soja-svg"></div>
+              <div class="planta-label">El programa en promedio está en <strong id="planta-estado-txt">—</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Evolución del pronóstico de rendimiento (Tn)</div>
+        <div class="chart-wrap" id="seg-chart-pronostico-wrap"><canvas id="seg-chart-pronostico"></canvas></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">Avance de cosecha</div>
+          <div class="kpi-box" style="height:auto">
+            <div><span class="kpi-value" id="seg-kpi-cosecha">0</span><span class="kpi-unit">%</span></div>
+            <div class="progress-wrap"><div class="progress-bar" id="seg-cosecha-bar"></div></div>
+            <div class="kpi-sub" id="seg-cosecha-sub">0 de 0 ha cosechadas</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Evolución de la cosecha</span>
+            <select id="seg-chart-cosecha-unidad" onchange="cambiarUnidadSegCosecha(this.value)"
+              style="font-family:var(--font);font-size:11.5px;font-weight:600;border:1.5px solid var(--border);border-radius:6px;padding:4px 6px;text-transform:none;letter-spacing:0">
+              <option value="pct">% avance</option>
+              <option value="ha">Hectáreas</option>
+              <option value="tn">Toneladas</option>
+            </select>
+          </div>
+          <div class="cosecha-flex-row">
+            <div class="chart-wrap" id="seg-chart-cosecha-wrap"><canvas id="seg-chart-cosecha"></canvas></div>
+            <div class="termometro-col">
+              <div class="termometro-tubo">
+                <div class="termometro-mercurio" id="seg-termometro-mercurio"></div>
+                <div class="termometro-linea" id="seg-termometro-linea">
+                  <span class="termometro-linea-label" id="seg-termometro-linea-label"></span>
+                </div>
+              </div>
+              <div class="termometro-leyenda" id="seg-termometro-leyenda">Confirmado<br><b>0%</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = '/api/gs';
+
+// ─── ESTADO ───────────────────────────────────────────────
+let allLotes   = [];
+let allVisitas = [];
+let entregasPorCampo = {}; // id_campo -> { tn_embolse, semanas: {fechaInicioISO: tn} }, con el último valor cargado
+let estadoConveniosServidor = {}; // razon_social -> { enviado, firmado } (desde el servidor)
+let campanaLogisticaSeleccionada = '';
+let activeTab  = 'principal';
+let filtros    = { campana:new Set(), region:new Set(), provincia:new Set(), productor:new Set(), nombre_campo:new Set(), variedad:new Set(), siembra:new Set() };
+let rankingGeo = 'region'; // 'region' | 'provincia' — campo activo en el ranking geográfico
+let mapLotes=null;
+let layersLotes=[];
+let charts = { pie:null, linea:null, campanas:null, condicion:null, fenologico:null, pronostico:null, cosecha:null, cosechaPrincipal:null, avance:null, logisticaEntregas:null, logisticaCupo:null };
+let datosCacheLogistica = null;
+let unidadChartLogistica = 'tn'; // 'pct' | 'tn'
+
+const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
+const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
+const COLORES_CONDICION = {'Lote perdido':'#7a1f1f','Muy mala':'#b33','Mala':'#d97706','Regular':'#c8a04a','Buena':'#7ab648','Muy Buena':'#3a8f2e','Excelente':'#2a4e1e','Sin dato':'#aaa'};
+const COLORES_FENOLOGICO = ['#a8d08d','#7ab648','#3a8f2e','#2a4e1e','#7c3aed','#c8a04a','#d97706','#8a6a2a'];
+
+// ─── COLOR POR CAMPAÑA (compartido entre gráfico y mapas) ──
+const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
+let campanaColorMap = {};
+function construirColoresCampana() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  campanaColorMap = {};
+  campanas.forEach((c,i) => campanaColorMap[c] = PALETA_CAMPANAS[i % PALETA_CAMPANAS.length]);
+}
+function colorCampana(c) { return campanaColorMap[c] || '#1a56db'; }
+
+const FILTROS_DEF = [
+  {key:'campana',      label:'Campaña'},
+  {key:'region',       label:'Región'},
+  {key:'provincia',    label:'Provincia'},
+  {key:'productor',    label:'Productor'},
+  {key:'nombre_campo', label:'Campo'},
+  {key:'variedad',     label:'Variedad'},
+  {key:'siembra',      label:'Siembra (1ra/2da)'}
+];
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  try {
+    const [resLotes, resVisitas, resEntregas, resConvenios] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas'),
+      fetch(APPS_SCRIPT_URL + '?action=getEntregas'),
+      fetch(APPS_SCRIPT_URL + '?action=getEstadoConvenios', { cache:'no-store' })
+    ]);
+    const data     = await resLotes.json();
+    const visitas  = await resVisitas.json();
+    const entregas = await resEntregas.json();
+    // Estado real de convenios por cliente (antes: localStorage compartido
+    // con la hoja administrativa; ahora lo informa el servidor/Adobe Sign).
+    estadoConveniosServidor = {};
+    ((await resConvenios.json()) || []).forEach(f => {
+      const e = estadoConveniosServidor[f.razon_social] ||
+        (estadoConveniosServidor[f.razon_social] = { enviado:false, firmado:false });
+      if (['enviado','visto','firmado','rechazado','expirado'].includes(f.estado)) e.enviado = true;
+      if (f.estado === 'firmado') e.firmado = true;
+    });
+    allLotes   = (Array.isArray(data) ? data : []).map(normalizarLote);
+    allVisitas = Array.isArray(visitas) ? visitas : [];
+
+    const COLS_FIJAS_ENTREGA = ['id_campo','productor','nombre_campo','campana','tn_embolse','fecha_actualizacion'];
+    entregasPorCampo = {};
+    (Array.isArray(entregas) ? entregas : []).forEach(r => {
+      entregasPorCampo[r.id_campo] = { tn_embolse: parseFloat(r.tn_embolse)||0, semanas: {} };
+      Object.keys(r).forEach(k => {
+        if (!COLS_FIJAS_ENTREGA.includes(k) && r[k] !== '' && r[k] != null) {
+          entregasPorCampo[r.id_campo].semanas[k] = parseFloat(r[k]) || 0;
+        }
+      });
+    });
+    aplicarUltimaSiembra();
+    aplicarUltimaFechaSiembra();
+    construirColoresCampana();
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+  }
+  construirFiltros();
+  inicializarFiltroLogistica();
+  renderTabActiva();
+}
+
+function normalizarLote(l) {
+  return {
+    ...l,
+    area_ha: parseFloat(l.area_ha) || 0,
+    fecha_siembra_estimada: aFechaISO(l.fecha_siembra_estimada),
+    provincia: l.provincia || 'Sin dato',
+    region: l.region || 'Sin clasificar',
+    departamento: l.departamento || 'Sin dato',
+    productor: l.productor || 'Sin dato',
+    nombre_campo: l.nombre_campo || 'Sin dato',
+    variedad: l.variedad || 'Sin dato',
+    campana: l.campana || 'Sin dato',
+    siembra: l.siembra || '1ra'
+  };
+}
+
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+// Toma el último dato de "siembra" cargado por visita o carga masiva
+// y lo aplica al lote, ya que ese indicador puede editarse desde ahí.
+function aplicarUltimaSiembra() {
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v.siembra) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l.siembra = u.siembra;
+  });
+}
+
+// Si el técnico confirmó una fecha de siembra real en una visita, esa fecha
+// reemplaza a la declarada en la carga del lote para reflejar el avance real.
+function aplicarUltimaFechaSiembra() {
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v.fecha_siembra) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l.fecha_siembra_estimada = aFechaISO(u.fecha_siembra);
+  });
+}
+
+// Busca el último valor NO VACÍO de un campo en las visitas de cada lote.
+// Usado para campos que pueden estar vacíos en cargas masivas pero existían antes.
+function aplicarUltimoValorNoVacio(campoLote, campoBD) {
+  campoBD = campoBD || campoLote;
+  const ultimaPorLote = {};
+  allVisitas.forEach(v=>{
+    if (!v[campoBD]) return;
+    const actual = ultimaPorLote[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultimaPorLote[v.id_lote] = v;
+  });
+  allLotes.forEach(l=>{
+    const u = ultimaPorLote[l.id_lote];
+    if (u) l[campoLote] = u[campoBD];
+  });
+}
+
+// ─── FILTROS ──────────────────────────────────────────────
+// Cada filtro acota las opciones de los demás: las opciones de un filtro
+// se calculan respetando las selecciones de TODOS los otros filtros
+// (pero ignorando las propias), de forma que elegir un valor en uno
+// reduce las opciones disponibles en el resto.
+function construirFiltros() {
+  const cont = document.getElementById('filtros-container');
+  const grupoAbierto = cont.querySelector('.filter-group.open');
+  const keyAbierto = grupoAbierto ? grupoAbierto.dataset.key : null;
+  const busquedas = {};
+  FILTROS_DEF.forEach(f => {
+    const input = document.querySelector(`#filtros-container .filter-group[data-key="${f.key}"] .filter-search`);
+    busquedas[f.key] = input ? input.value : '';
+  });
+
+  cont.innerHTML = FILTROS_DEF.map(f => {
+    const lotesAcotados = allLotes.filter(l =>
+      FILTROS_DEF.every(otro => otro.key === f.key || filtros[otro.key].size === 0 || filtros[otro.key].has(l[otro.key]))
+    );
+    const valores = [...new Set(lotesAcotados.map(l=>l[f.key]).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+    return `
+      <div class="filter-group" data-key="${f.key}">
+        <button type="button" class="filter-dropdown-btn" onclick="toggleDropdown(this)">
+          <span>${f.label}</span>
+          <span class="badge-count" id="badge-${f.key}">Todas</span>
+          <span class="arrow">▾</span>
+        </button>
+        <div class="filter-dropdown-panel">
+          <input type="text" class="filter-search" placeholder="Buscar..." value="${escAttrLocal(busquedas[f.key])}" oninput="filtrarListaFiltro('${f.key}', this.value)">
+          <div class="filter-list" id="filter-list-${f.key}">
+            ${valores.map(v => `
+              <div class="filter-item">
+                <input type="checkbox" id="filtro-${f.key}-${cssId(v)}" ${filtros[f.key].has(v)?'checked':''} onchange="toggleFiltro('${f.key}','${escJs(v)}',this.checked)">
+                <label for="filtro-${f.key}-${cssId(v)}">${v}</label>
+              </div>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  FILTROS_DEF.forEach(f => actualizarBadge(f.key));
+  if (keyAbierto) {
+    const grupo = cont.querySelector(`.filter-group[data-key="${keyAbierto}"]`);
+    if (grupo) {
+      grupo.classList.add('open');
+      if (busquedas[keyAbierto]) filtrarListaFiltro(keyAbierto, busquedas[keyAbierto]);
+    }
+  }
+}
+
+function escAttrLocal(s) { return String(s==null?'':s).replace(/"/g,'&quot;'); }
+
+function toggleFiltrosMobile() {
+  document.getElementById('sidebar-filtros').classList.toggle('filtros-open');
+}
+
+function cssId(v){ return String(v).replace(/[^a-zA-Z0-9_-]/g,'_'); }
+function escJs(v){ return String(v).replace(/'/g,"\\'"); }
+
+function toggleDropdown(btn) {
+  const grupo = btn.closest('.filter-group');
+  const yaAbierto = grupo.classList.contains('open');
+  document.querySelectorAll('.filter-group.open').forEach(g=>g.classList.remove('open'));
+  if (!yaAbierto) grupo.classList.add('open');
+}
+
+function filtrarListaFiltro(key, texto) {
+  const t = texto.toLowerCase();
+  document.querySelectorAll(`#filter-list-${key} .filter-item`).forEach(item=>{
+    const label = item.querySelector('label').textContent.toLowerCase();
+    item.style.display = label.includes(t) ? 'flex' : 'none';
+  });
+}
+
+function actualizarBadge(key) {
+  const n = filtros[key].size;
+  document.getElementById('badge-'+key).textContent = n ? `${n} seleccionada${n>1?'s':''}` : 'Todas';
+}
+
+function toggleFiltro(key, valor, checked) {
+  if (checked) filtros[key].add(valor); else filtros[key].delete(valor);
+  construirFiltros();
+  renderTabActiva();
+}
+
+function limpiarFiltros() {
+  FILTROS_DEF.forEach(f => { filtros[f.key].clear(); });
+  construirFiltros();
+  document.querySelectorAll('.filter-group.open').forEach(g=>g.classList.remove('open'));
+  renderTabActiva();
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.filter-group')) {
+    document.querySelectorAll('.filter-group.open').forEach(g=>g.classList.remove('open'));
+  }
+});
+
+function lotesFiltrados() {
+  return allLotes.filter(l =>
+    FILTROS_DEF.every(f => filtros[f.key].size === 0 || filtros[f.key].has(l[f.key]))
+  );
+}
+
+// La solapa Principal solo muestra la última campaña cargada, sin importar
+// qué campañas queden seleccionadas en los filtros.
+function campanaMasReciente() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanas[campanas.length-1];
+}
+
+// ─── TABS ─────────────────────────────────────────────────
+function switchDashTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tabs .tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  const idx = {principal:0,seguimiento:1,mapa:2,comparativo:3,logistica:4,visitas:5,campos:6}[tab];
+  document.querySelectorAll('.tabs .tab-btn')[idx].classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  renderTabActiva();
+}
+
+function renderTabActiva() {
+  const datos = lotesFiltrados();
+  if (activeTab === 'principal') {
+    const ultimaCampana = campanaMasReciente();
+    renderPrincipal(datos.filter(l => l.campana === ultimaCampana));
+  }
+  if (activeTab === 'mapa')           renderMapaLotes(datos);
+  if (activeTab === 'comparativo')    renderComparativo(datos);
+  if (activeTab === 'logistica') {
+    const campanaLog = campanaLogisticaSeleccionada || campanaMasReciente();
+    renderLogistica(datos.filter(l => l.campana === campanaLog));
+  }
+  if (activeTab === 'visitas')        renderSeguimiento(datos);
+  if (activeTab === 'campos')         renderCampos(datos);
+  if (activeTab === 'seguimiento') {
+    const ultimaCampana = campanaMasReciente();
+    renderSeguimientoDashboard(datos.filter(l => l.campana === ultimaCampana));
+  }
+}
+
+function esTrue(v) { return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si'; }
+
+function ultimaPorLoteVisitas(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const ultima = {};
+  allVisitas.forEach(v=>{
+    if (!idsVisibles.has(v.id_lote)) return;
+    const actual = ultima[v.id_lote];
+    if (!actual || aFechaISO(v.fecha_visita) >= aFechaISO(actual.fecha_visita)) ultima[v.id_lote] = v;
+  });
+  // Rellenar campos vacíos con valores de registros anteriores
+  const camposARellenar = ['condicion_cultivo','observacion_plagas','estado_fenologico','estado_malezas','rinde_estimado_qqha'];
+  Object.keys(ultima).forEach(idLote=>{
+    camposARellenar.forEach(campo=>{
+      if (!ultima[idLote][campo]) {
+        for (let i = allVisitas.length-1; i >= 0; i--) {
+          const v = allVisitas[i];
+          if (v.id_lote === idLote && v[campo]) {
+            ultima[idLote][campo] = v[campo];
+            break;
+          }
+        }
+      }
+    });
+  });
+  return ultima;
+}
+
+// ─── TAB SEGUIMIENTO ──────────────────────────────────────
+function renderSeguimiento(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const visitasFiltradas = [];
+  allVisitas.forEach(v=>{
+    if (!idsVisibles.has(v.id_lote) || v.tipo_registro !== 'visita') return;
+    visitasFiltradas.push(v);
+  });
+
+  const filas = visitasFiltradas.sort((a,b)=> (b.fecha_visita||'').localeCompare(a.fecha_visita||''));
+  const tbody = document.getElementById('tabla-seguimiento-body');
+  if (!filas.length) {
+    tbody.innerHTML = '<tr><td colspan="14" class="empty-msg">Todavía no hay visitas registradas para los lotes filtrados</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filas.map(v=>`
+    <tr>
+      <td>${v.productor||'—'}</td>
+      <td>${v.nombre_campo||'—'}</td>
+      <td>${v.lote||'—'}</td>
+      <td>${formatFechaCorta(v.fecha_visita)}</td>
+      <td>${(v.lote_sembrado===true||v.lote_sembrado===1||v.lote_sembrado==='1')?'Sí':'No'}</td>
+      <td>${formatFechaCorta(v.fecha_siembra)}</td>
+      <td>${formatFechaCorta(v.fecha_cosecha_estimada)}</td>
+      <td>${v.estado_fenologico||'—'}</td>
+      <td>${v.estado_malezas||'—'}</td>
+      <td>${(v.malezas_resistentes===true||v.malezas_resistentes===1||v.malezas_resistentes==='1')?'Sí':'No'}</td>
+      <td>${v.observacion_plagas||'—'}</td>
+      <td>${v.condicion_cultivo||'—'}</td>
+      <td>${v.rinde_estimado_qqha||'—'}</td>
+      <td>${v.notas||'—'}</td>
+    </tr>`).join('');
+}
+
+// ─── TAB CAMPOS ───────────────────────────────────────────
+function renderCampos(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+  const tbody = document.getElementById('tabla-campos-body');
+  if (!datos.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty-msg">No hay lotes para los filtros aplicados</td></tr>';
+    return;
+  }
+  const filas = [...datos].sort((a,b)=> a.productor.localeCompare(b.productor) || a.nombre_campo.localeCompare(b.nombre_campo));
+  tbody.innerHTML = filas.map(l=>{
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    const produccionTn = (!isNaN(rinde) && rinde > 0) ? (rinde * l.area_ha / 10) : NaN;
+    return `
+    <tr>
+      <td>${l.productor||'—'}</td>
+      <td>${l.nombre_campo||'—'}</td>
+      <td>${l.lote||'—'}</td>
+      <td>${l.area_ha.toLocaleString('es-AR',{maximumFractionDigits:1})}</td>
+      <td>${v ? formatFechaCorta(v.fecha_siembra) : '—'}</td>
+      <td>${(!isNaN(rinde) && rinde > 0) ? rinde.toLocaleString('es-AR',{maximumFractionDigits:1}) : '—'}</td>
+      <td>${!isNaN(produccionTn) ? produccionTn.toLocaleString('es-AR',{maximumFractionDigits:1}) : '—'}</td>
+      <td>${v ? formatFechaCorta(v.fecha_cosecha_estimada) : '—'}</td>
+      <td>${(v && v.condicion_cultivo) || '—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function formatFechaCorta(f) {
+  if (!f) return '—';
+  const iso = aFechaISO(f);
+  if (!iso) return '—';
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+// ─── MAPAS ────────────────────────────────────────────────
+function addBaseLayers(m) {
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Imagery © Esri',maxZoom:19}).addTo(m);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'',maxZoom:19,opacity:.8}).addTo(m);
+}
+
+const UMBRAL_PIN_PX = 26; // si el polígono mide menos de esto en pantalla, se muestra como pin
+
+function dibujarLotesEnMapa(map, itemsArr, datos) {
+  itemsArr.forEach(it=>{ map.removeLayer(it.poly); map.removeLayer(it.marker); });
+  itemsArr.length = 0;
+  datos.forEach(l=>{
+    if (!l.poligono_geojson) return;
+    let geom;
+    try { geom = JSON.parse(l.poligono_geojson); } catch(e) { return; }
+    if (!geom || !geom.coordinates) return;
+    const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+    const tooltipHtml = `<strong>${l.nombre_campo}</strong>${l.lote?' · '+l.lote:''}<br>${l.productor}<br><span style="color:#555">${l.variedad} · ${l.area_ha} ha · ${l.campana}</span>`;
+    const color = colorCampana(l.campana);
+
+    const poly = L.polygon(ll,{color,fillColor:color,fillOpacity:.5,weight:1.5});
+    poly.bindTooltip(tooltipHtml,{sticky:true});
+
+    const lat = parseFloat(l.latitud_centroide), lng = parseFloat(l.longitud_centroide);
+    const centro = (!isNaN(lat) && !isNaN(lng)) ? [lat,lng] : poly.getBounds().getCenter();
+    const marker = L.circleMarker(centro,{radius:6,color,fillColor:color,fillOpacity:.85,weight:1.5});
+    marker.bindTooltip(tooltipHtml,{sticky:true});
+
+    poly.addTo(map);
+    itemsArr.push({ poly, marker, bounds: poly.getBounds() });
+  });
+
+  if (itemsArr.length) {
+    map.fitBounds(L.featureGroup(itemsArr.map(it=>it.poly)).getBounds(),{padding:[30,30]});
+  } else {
+    map.setView([-34.5,-63],5);
+  }
+  map.invalidateSize();
+  ajustarPines(map, itemsArr);
+}
+
+function ajustarPines(map, itemsArr) {
+  itemsArr.forEach(it=>{
+    const sw = map.latLngToContainerPoint(it.bounds.getSouthWest());
+    const ne = map.latLngToContainerPoint(it.bounds.getNorthEast());
+    const anchoPx = Math.abs(ne.x - sw.x);
+    const altoPx  = Math.abs(sw.y - ne.y);
+    const esChico = Math.max(anchoPx, altoPx) < UMBRAL_PIN_PX;
+    if (esChico) {
+      if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+      if (!map.hasLayer(it.marker)) it.marker.addTo(map);
+    } else {
+      if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+      if (!map.hasLayer(it.poly)) it.poly.addTo(map);
+    }
+  });
+}
+
+function renderMapaLotes(datos) {
+  if (!mapLotes) {
+    mapLotes = L.map('map-lotes').setView([-34.5,-63],5);
+    addBaseLayers(mapLotes);
+    mapLotes.on('zoomend', () => ajustarPines(mapLotes, layersLotes));
+  }
+  dibujarLotesEnMapa(mapLotes, layersLotes, datos);
+}
+
+// ─── TAB PRINCIPAL ────────────────────────────────────────
+function renderPrincipal(datos) {
+  renderKpi(datos);
+  renderPieVariedad(datos);
+  renderPieSiembra(datos);
+  const selGeo = document.getElementById('rank-geo-select');
+  if (selGeo) selGeo.value = rankingGeo;
+  renderRanking('rank-provincias', datos, rankingGeo);
+  renderRanking('rank-productores', datos, 'productor');
+  renderLineaSiembras(datos);
+  renderCosechaEvolucionPrincipal(datos);
+  renderAvance(datos);
+}
+
+function renderKpi(datos) {
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  document.getElementById('kpi-ha').textContent = totalHa.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('kpi-lotes').textContent = datos.length + (datos.length===1?' lote':' lotes');
+  const totalHaPlan = allLotes.reduce((s,l)=>s+l.area_ha,0);
+  document.getElementById('kpi-ha-plan').textContent = 'Plan: ' + totalHaPlan.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' ha';
+
+  // Toneladas estimadas: rinde (qq/ha) x has / 10, con el último rinde
+  // cargado de cada lote (0 si todavía no tiene rinde informado).
+  const ultima = ultimaPorLoteVisitas(datos);
+  const totalTn = datos.reduce((s,l) => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    return s + ((!isNaN(rinde) && rinde > 0) ? (rinde * l.area_ha / 10) : 0);
+  }, 0);
+  document.getElementById('kpi-tn').textContent = totalTn.toLocaleString('es-AR',{maximumFractionDigits:1}) + ' tn estimadas';
+
+  renderGaugeConvenios(datos);
+}
+
+// ─── GAUGE CONVENIOS FIRMADOS / ENVIADOS ──────────────────
+// % = clientes con convenio firmado (o enviado) sobre el total de
+// clientes con lotes inscriptos (según los filtros aplicados). El estado
+// de los convenios se guarda en localStorage desde la hoja administrativa.
+function renderGaugeConvenios(datos) {
+  const estadoConvenios = estadoConveniosServidor || {};
+  const productores = [...new Set(datos.map(l=>l.productor).filter(Boolean))];
+  const total = productores.length;
+  let firmados = 0, enviados = 0;
+  productores.forEach(p => {
+    const e = estadoConvenios[p];
+    if (e && e.firmado) firmados++;
+    if (e && e.enviado) enviados++;
+  });
+  const pctFirmado = total ? Math.round((firmados/total)*100) : 0;
+  const pctEnviado = total ? Math.round((enviados/total)*100) : 0;
+  document.getElementById('gauge-firmado-pct').textContent = pctFirmado + '%';
+  document.getElementById('gauge-enviado-pct').textContent = pctEnviado + '%';
+  const gauge = document.getElementById('gauge-convenios');
+  gauge.style.setProperty('--gauge-firmado-half', (pctFirmado/2) + '%');
+  document.getElementById('gauge-convenios-needle').style.setProperty('--gauge-enviado-deg', (-90 + (pctEnviado/100*180)) + 'deg');
+}
+
+function renderPieVariedad(datos) {
+  const porVariedad = {};
+  datos.forEach(l => porVariedad[l.variedad] = (porVariedad[l.variedad]||0) + l.area_ha);
+  const labels = Object.keys(porVariedad);
+  const valores = Object.values(porVariedad);
+  const colores = ['#3a6b2a','#1a56db','#c8a04a','#7a5c1a','#2a4e1e','#5b8fd4','#a3c585','#b33','#6c5ce7','#00897b'];
+
+  if (charts.pie) charts.pie.destroy();
+  charts.pie = new Chart(document.getElementById('chart-pie'), {
+    type: 'pie',
+    data: { labels, datasets:[{ data: valores, backgroundColor: colores }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } }
+    }
+  });
+}
+
+function renderPieSiembra(datos) {
+  const porSiembra = { '1ra':0, '2da':0 };
+  datos.forEach(l => { porSiembra[l.siembra==='2da'?'2da':'1ra'] += l.area_ha; });
+  const labels = ['1ra siembra','2da siembra'];
+  const valores = [porSiembra['1ra'], porSiembra['2da']];
+  const colores = ['#3a6b2a','#c8a04a'];
+
+  if (charts.pieSiembra) charts.pieSiembra.destroy();
+  charts.pieSiembra = new Chart(document.getElementById('chart-pie-siembra'), {
+    type: 'pie',
+    data: { labels, datasets:[{ data: valores, backgroundColor: colores }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'right', labels:{ boxWidth:12, font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha` } } }
+    }
+  });
+}
+
+function cambiarRankingGeo(valor) {
+  rankingGeo = valor;
+  renderRanking('rank-provincias', lotesFiltrados(), rankingGeo);
+}
+
+function renderRanking(containerId, datos, campo) {
+  const cont = document.getElementById(containerId);
+  const agrupado = {};
+  datos.forEach(l => agrupado[l[campo]] = (agrupado[l[campo]]||0) + l.area_ha);
+  const orden = Object.entries(agrupado).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if (!orden.length) { cont.innerHTML = '<div class="empty-msg">Sin datos para los filtros aplicados</div>'; return; }
+  const max = orden[0][1];
+  cont.innerHTML = orden.map(([nombre,ha],i) => `
+    <div class="rank-row">
+      <span class="rank-pos">${i+1}</span>
+      <span class="rank-name" title="${nombre}">${nombre}</span>
+      <span class="rank-bar-wrap"><span class="rank-bar" style="width:${max?(ha/max*100):0}%"></span></span>
+      <span class="rank-val">${ha.toLocaleString('es-AR',{maximumFractionDigits:1})} ha</span>
+    </div>`).join('');
+}
+
+// Ordena las fechas según el calendario de campaña: 1-sep ... 31-dic, 1-ene ... 15-feb
+function ordenCampana(fechaISO) {
+  const [, mesStr, diaStr] = fechaISO.split('-');
+  const mes = Number(mesStr), dia = Number(diaStr);
+  return mes >= 9 ? (mes * 100 + dia) : ((mes + 12) * 100 + dia);
+}
+
+const MESES_ABR = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+
+function renderLineaSiembras(datos) {
+  const INICIO_KEY = 9 * 100 + 1;     // 1-sep
+  const FIN_KEY     = (2 + 12) * 100 + 15; // 15-feb
+
+  const porCampana = {};
+  datos.forEach(l => {
+    if (!l.fecha_siembra_estimada) return;
+    const key = ordenCampana(l.fecha_siembra_estimada);
+    if (key < INICIO_KEY || key > FIN_KEY) return;
+    const c = l.campana;
+    if (!porCampana[c]) porCampana[c] = {};
+    porCampana[c][key] = (porCampana[c][key] || 0) + (l.area_ha || 0);
+  });
+
+  const campanas = Object.keys(porCampana).sort();
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  campanas.forEach(c => Object.keys(porCampana[c]).forEach(k => clavesSet.add(Number(k))));
+  const claves = [...clavesSet].sort((a,b)=>a-b);
+
+  const keyAFecha = (key) => {
+    const mesReal = key > 1200 ? Math.floor(key/100) - 12 : Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mesReal-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const datasets = campanas.map(c => {
+    let acumulado = 0;
+    const datosCampana = porCampana[c];
+    const data = claves.map(k => { acumulado += (datosCampana[k] || 0); return acumulado; });
+    const color = colorCampana(c);
+    return {
+      label: c,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: true,
+      tension: 0,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    };
+  });
+
+  if (charts.linea) charts.linea.destroy();
+  charts.linea = new Chart(document.getElementById('chart-linea'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: campanas.length > 1, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha acumuladas` } }
+      },
+      scales:{ x:{ ticks:{ font:{size:10} } }, y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:'ha acumuladas',font:{size:10}} } }
+    }
+  });
+}
+
+// ─── TAB COMPARATIVO ──────────────────────────────────────
+let datosCacheComparativo = null;
+let unidadChartCampanas = 'ha'; // 'ha' | 'tn'
+let unidadChartSiembras = 'pct'; // 'pct' | 'ha' | 'tn'
+let unidadChartCosechas = 'pct'; // 'pct' | 'ha' | 'tn'
+
+function renderComparativo(datos) {
+  datosCacheComparativo = datos;
+  renderChartCampanas();
+  renderChartSiembras();
+  renderChartCosechas();
+}
+
+function renderChartCampanas() {
+  const datos = datosCacheComparativo;
+  const porCampana = {};
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = { ha:0, tn:0 };
+    porCampana[l.campana].ha += l.area_ha;
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    if (!isNaN(rinde) && rinde > 0) {
+      const tn = rinde * l.area_ha / 10;
+      porCampana[l.campana].tn += tn;
+    }
+  });
+
+  const labels = Object.keys(porCampana).sort();
+  const valores = labels.map(c => porCampana[c][unidadChartCampanas]);
+  const unidadLabel = unidadChartCampanas === 'ha' ? 'Hectáreas' : 'Toneladas';
+
+  if (charts.campanas) charts.campanas.destroy();
+  charts.campanas = new Chart(document.getElementById('chart-campanas'), {
+    type: 'bar',
+    data: { labels, datasets:[{ data: valores, backgroundColor:'#3a6b2a', borderRadius:4 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartCampanas}` } }
+      },
+      scales:{ y:{ title:{display:true,text:unidadLabel} } }
+    }
+  });
+}
+
+function cambiarUnidadChartCampanas(valor) {
+  unidadChartCampanas = valor;
+  renderChartCampanas();
+}
+
+function renderChartSiembras() {
+  const datos = datosCacheComparativo;
+  const INICIO_KEY = 915;  // 15 de septiembre
+  const FIN_KEY = 1415;    // 15 de febrero del siguiente año (mes 2 codificado como 2+12)
+  const porCampana = {};
+
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = {};
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && esTrue(v.lote_sembrado) && v.fecha_siembra) {
+      const fecha = new Date(aFechaISO(v.fecha_siembra));
+      if (!isNaN(fecha)) {
+        const mes = fecha.getMonth() + 1;
+        const dia = fecha.getDate();
+        const mesAjustado = mes < 9 ? mes + 12 : mes;
+        const key = mesAjustado * 100 + dia;
+
+        if (key >= INICIO_KEY && key <= FIN_KEY) {
+          if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+          porCampana[l.campana][key].ha += l.area_ha;
+
+          const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+          if (!isNaN(rinde) && rinde > 0) {
+            porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          }
+        }
+      }
+    }
+  });
+
+  const campanas = Object.keys(porCampana).sort();
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  campanas.forEach(c => Object.keys(porCampana[c]).forEach(k => clavesSet.add(Number(k))));
+  const claves = [...clavesSet].sort((a,b) => a-b);
+
+  const keyAFecha = (key) => {
+    const mesReal = key > 1200 ? Math.floor(key/100) - 12 : Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mesReal-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const totalHaPorCampana = {};
+  campanas.forEach(c => {
+    totalHaPorCampana[c] = datos.filter(l => l.campana === c).reduce((s,l) => s + l.area_ha, 0);
+  });
+
+  const datasets = campanas.map(c => {
+    let acumulado = { ha:0, tn:0 };
+    const datosCampana = porCampana[c];
+    const data = claves.map(k => {
+      acumulado.ha += (datosCampana[k]?.ha || 0);
+      acumulado.tn += (datosCampana[k]?.tn || 0);
+      if (unidadChartSiembras === 'pct') {
+        return totalHaPorCampana[c] ? (acumulado.ha / totalHaPorCampana[c] * 100) : 0;
+      } else if (unidadChartSiembras === 'tn') {
+        return acumulado.tn;
+      }
+      return acumulado.ha;
+    });
+    const color = colorCampana(c);
+    return {
+      label: c,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    };
+  });
+
+  const unidadLabel = unidadChartSiembras === 'pct' ? '% avance' : (unidadChartSiembras === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts.siembras) charts.siembras.destroy();
+  charts.siembras = new Chart(document.getElementById('chart-siembras'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: campanas.length > 1, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartSiembras === 'pct' ? '%' : unidadChartSiembras}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartSiembras(valor) {
+  unidadChartSiembras = valor;
+  renderChartSiembras();
+}
+
+function renderChartCosechas() {
+  const datos = datosCacheComparativo;
+  const INICIO_KEY = 315;   // 15 de marzo
+  const FIN_KEY = 615;      // 15 de junio
+  const porCampana = {};
+
+  datos.forEach(l => {
+    if (!porCampana[l.campana]) porCampana[l.campana] = {};
+  });
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && v.fecha_cosecha_estimada) {
+      const fecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
+      if (!isNaN(fecha)) {
+        const mes = fecha.getMonth() + 1;
+        const dia = fecha.getDate();
+        const key = mes * 100 + dia;
+
+        if (key >= INICIO_KEY && key <= FIN_KEY) {
+          if (!porCampana[l.campana][key]) porCampana[l.campana][key] = { ha:0, tn:0 };
+          porCampana[l.campana][key].ha += l.area_ha;
+
+          const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+          if (!isNaN(rinde) && rinde > 0) {
+            porCampana[l.campana][key].tn += rinde * l.area_ha / 10;
+          }
+        }
+      }
+    }
+  });
+
+  const campanas = Object.keys(porCampana).sort();
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  campanas.forEach(c => Object.keys(porCampana[c]).forEach(k => clavesSet.add(Number(k))));
+  const claves = [...clavesSet].sort((a,b) => a-b);
+
+  const keyAFecha = (key) => {
+    const mes = Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mes-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const totalHaPorCampana = {};
+  campanas.forEach(c => {
+    totalHaPorCampana[c] = datos.filter(l => l.campana === c).reduce((s,l) => s + l.area_ha, 0);
+  });
+
+  const datasets = campanas.map(c => {
+    let acumulado = { ha:0, tn:0 };
+    const datosCampana = porCampana[c];
+    const data = claves.map(k => {
+      acumulado.ha += (datosCampana[k]?.ha || 0);
+      acumulado.tn += (datosCampana[k]?.tn || 0);
+      if (unidadChartCosechas === 'pct') {
+        return totalHaPorCampana[c] ? (acumulado.ha / totalHaPorCampana[c] * 100) : 0;
+      } else if (unidadChartCosechas === 'tn') {
+        return acumulado.tn;
+      }
+      return acumulado.ha;
+    });
+    const color = colorCampana(c);
+    return {
+      label: c,
+      data,
+      borderColor: color,
+      backgroundColor: color + '26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    };
+  });
+
+  const unidadLabel = unidadChartCosechas === 'pct' ? '% avance' : (unidadChartCosechas === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts.cosechas) charts.cosechas.destroy();
+  charts.cosechas = new Chart(document.getElementById('chart-cosechas'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display: campanas.length > 1, position:'top', labels:{ boxWidth:12, font:{size:10} } },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.dataset.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartCosechas === 'pct' ? '%' : unidadChartCosechas}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartCosechas(valor) {
+  unidadChartCosechas = valor;
+  renderChartCosechas();
+}
+
+// ─── TAB LOGÍSTICA ────────────────────────────────────────
+function idCampoDe(l) {
+  return [l.productor, l.nombre_campo, l.campana].join('||');
+}
+
+function anioCosechaDeCampana(campana) {
+  const partes = String(campana).split('/');
+  const sufijo = partes[1] || partes[0];
+  const n = parseInt(sufijo, 10);
+  if (isNaN(n)) return new Date().getFullYear();
+  return n < 100 ? 2000 + n : n;
+}
+
+function lunesDeSemana(fecha) {
+  const d = new Date(fecha);
+  const diaSemana = d.getDay(); // 0=domingo
+  const offset = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + offset);
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function construirSemanasLogistica(anio) {
+  const inicio = new Date(anio, 2, 1);   // 1 de marzo
+  const fin    = new Date(anio, 9, 31);  // 31 de octubre
+  const out = [];
+  let cursor = lunesDeSemana(inicio);
+  while (cursor <= fin) {
+    const iso = cursor.toISOString().slice(0,10);
+    out.push({
+      inicio: iso,
+      label: `${String(cursor.getDate()).padStart(2,'0')}/${MESES_ABR[cursor.getMonth()]}`
+    });
+    cursor = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 7);
+  }
+  return out;
+}
+
+// Las fechas de entregas reales vienen como encabezados de columna de la hoja
+// "Entregas" y pueden no calzar carácter a carácter con las fechas de lunes que
+// genera construirSemanasLogistica (distintos formatos, horas, etc.). Por eso
+// cada fecha real se "ancla" a la semana (lunes) que le corresponde en vez de
+// buscarla por coincidencia exacta de string, así ninguna entrega real se pierde.
+function semanaAncladaISO(fechaStr, semanas) {
+  const fecha = new Date(aFechaISO(fechaStr));
+  if (isNaN(fecha)) return null;
+  const iso = lunesDeSemana(fecha).toISOString().slice(0,10);
+  if (semanas.some(s => s.inicio === iso)) return iso;
+  // Si cae fuera del rango marzo-octubre, se clampea a la semana más cercana
+  // en vez de descartar el dato.
+  const ordenadas = [...semanas].sort((a,b)=>a.inicio.localeCompare(b.inicio));
+  if (!ordenadas.length) return null;
+  return iso < ordenadas[0].inicio ? ordenadas[0].inicio : ordenadas[ordenadas.length-1].inicio;
+}
+
+// Para cada campo (productor+campo+campaña): el tn de cada lote se asume
+// entregado en la semana posterior a su última cosecha informada. Si el
+// campo tiene entregas reales cargadas, esos tn se restan del default
+// (empezando por las semanas más tempranas) y se grafican en sus semanas
+// reales en su lugar.
+function calcularEntregasPorSemana(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+  const campanaDatos = datos.length ? datos[0].campana : campanaMasReciente();
+  const anio = anioCosechaDeCampana(campanaDatos);
+  const semanas = construirSemanasLogistica(anio);
+
+  const porCampo = {};
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (!v || !v.fecha_cosecha_estimada) return;
+    const rinde = parseFloat(v.rinde_estimado_qqha);
+    if (isNaN(rinde) || rinde <= 0) return;
+    const fechaCosecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
+    if (isNaN(fechaCosecha)) return;
+
+    const tn = rinde * l.area_ha / 10;
+    const semanaEntregaDefault = lunesDeSemana(fechaCosecha);
+    semanaEntregaDefault.setDate(semanaEntregaDefault.getDate() + 7);
+    const isoDefault = semanaAncladaISO(semanaEntregaDefault.toISOString().slice(0,10), semanas);
+    if (!isoDefault) return;
+
+    const idc = idCampoDe(l);
+    if (!porCampo[idc]) porCampo[idc] = {};
+    porCampo[idc][isoDefault] = (porCampo[idc][isoDefault] || 0) + tn;
+  });
+
+  const totalPorSemana = {};
+  semanas.forEach(s => totalPorSemana[s.inicio] = 0);
+
+  Object.keys(porCampo).forEach(idc => {
+    const defaults = porCampo[idc];
+    const realBruto = (entregasPorCampo[idc] && entregasPorCampo[idc].semanas) || {};
+    // Normalizamos las claves de fecha real a la semana anclada correspondiente
+    // antes de usarlas, para no perder entregas por desajustes de formato.
+    const real = {};
+    Object.keys(realBruto).forEach(iso => {
+      const ancla = semanaAncladaISO(iso, semanas);
+      if (!ancla) return;
+      real[ancla] = (real[ancla] || 0) + realBruto[iso];
+    });
+    let restante = Object.values(real).reduce((a,b) => a+b, 0);
+
+    Object.keys(defaults).sort().forEach(iso => {
+      let tn = defaults[iso];
+      if (restante > 0) {
+        const resta = Math.min(restante, tn);
+        tn -= resta;
+        restante -= resta;
+      }
+      if (totalPorSemana.hasOwnProperty(iso)) totalPorSemana[iso] += tn;
+    });
+
+    Object.keys(real).forEach(iso => {
+      if (totalPorSemana.hasOwnProperty(iso)) totalPorSemana[iso] += real[iso];
+    });
+  });
+
+  return { semanas, totalPorSemana };
+}
+
+function renderLogistica(datos) {
+  datosCacheLogistica = calcularEntregasPorSemana(datos);
+  renderChartEntregasTiempo();
+  renderChartCupoSemanal();
+}
+
+function renderChartEntregasTiempo() {
+  const { semanas, totalPorSemana } = datosCacheLogistica;
+  const totalGeneral = Object.values(totalPorSemana).reduce((a,b) => a+b, 0);
+  let acumulado = 0;
+  const data = semanas.map(s => {
+    acumulado += totalPorSemana[s.inicio];
+    return unidadChartLogistica === 'pct' ? (totalGeneral ? acumulado / totalGeneral * 100 : 0) : acumulado;
+  });
+  const labels = semanas.map(s => s.label);
+  const unidadLabel = unidadChartLogistica === 'pct' ? '% avance' : 'Toneladas';
+
+  if (charts.logisticaEntregas) charts.logisticaEntregas.destroy();
+  charts.logisticaEntregas = new Chart(document.getElementById('chart-logistica-entregas'), {
+    type: 'line',
+    data: { labels, datasets:[{
+      label: 'Entregas proyectadas',
+      data,
+      borderColor: '#3a6b2a',
+      backgroundColor: '#3a6b2a26',
+      fill: true,
+      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      pointRadius: 2
+    }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidadChartLogistica === 'pct' ? '%' : 'tn'}` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10} }, title:{display:true,text:unidadLabel,font:{size:10}} }
+      }
+    }
+  });
+}
+
+function cambiarUnidadChartLogistica(valor) {
+  unidadChartLogistica = valor;
+  renderChartEntregasTiempo();
+}
+
+function renderChartCupoSemanal() {
+  const { semanas, totalPorSemana } = datosCacheLogistica;
+  const labels = semanas.map(s => s.label);
+  const data = semanas.map(s => Math.round((totalPorSemana[s.inicio] || 0) / 30));
+
+  if (charts.logisticaCupo) charts.logisticaCupo.destroy();
+  charts.logisticaCupo = new Chart(document.getElementById('chart-logistica-cupo'), {
+    type: 'bar',
+    data: { labels, datasets:[{ data, backgroundColor:'#3a6b2a', borderRadius:4 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:false },
+        tooltip:{ callbacks:{ label: ctx => `${ctx.raw} camión(es) de 30tn` } }
+      },
+      scales:{
+        x:{ ticks:{ font:{size:10} } },
+        y:{ beginAtZero:true, ticks:{ font:{size:10}, stepSize:1 } }
+      }
+    }
+  });
+}
+
+// ─── FILTRO DE CAMPAÑA PARA LOGÍSTICA ──────────────────────
+function inicializarFiltroLogistica() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort().reverse();
+  const select = document.getElementById('logistica-campana-filter');
+  select.innerHTML = campanas.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  // Si hay una campaña seleccionada en filtros generales, úsala; sino, la más reciente
+  const filtroGeneral = document.getElementById('filtros-container');
+  const campanaGeneralSelected = filtroGeneral ? filtroGeneral.querySelector('.filter-group[data-key="campana"] select')?.value : '';
+  campanaLogisticaSeleccionada = campanaGeneralSelected || campanaMasReciente();
+  select.value = campanaLogisticaSeleccionada;
+}
+
+function cambiarCampanaLogistica(campaña) {
+  campanaLogisticaSeleccionada = campaña;
+  const datosFiltrados = lotesFiltrados().filter(l => l.campana === campanaLogisticaSeleccionada);
+  renderLogistica(datosFiltrados);
+}
+
+// ─── TAB SEGUIMIENTO (indicadores del programa) ──────────
+function renderSeguimientoDashboard(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+
+  renderKpiHasYSiembra(datos, ultima);
+  renderKpiVisitas(datos);
+  renderSemaforoActualizacion(datos, ultima);
+  renderKpiRendimiento(datos, ultima);
+  renderPieCondicion(datos, ultima);
+  renderFenologico(datos, ultima);
+  renderPronosticoEvolucion(datos);
+  renderCosecha(datos, ultima);
+}
+
+function renderKpiHasYSiembra(datos, ultima) {
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  let haSembradas = 0;
+  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.lote_sembrado)) haSembradas += l.area_ha; });
+  const pct = totalHa ? (haSembradas/totalHa*100) : 0;
+  document.getElementById('seg-kpi-ha').textContent = totalHa.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('seg-ha-bar').style.width = Math.min(pct,100).toFixed(0)+'%';
+  document.getElementById('seg-ha-sub').textContent = `${pct.toFixed(0)}% sembrado (${haSembradas.toLocaleString('es-AR',{maximumFractionDigits:1})} ha)`;
+}
+
+function renderKpiVisitas(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const visitasVisibles = allVisitas.filter(v=>idsVisibles.has(v.id_lote) && v.tipo_registro === 'visita');
+  const visitasUnicas = new Set(visitasVisibles.map(v=>v.id_visita));
+  document.getElementById('seg-kpi-visitas').textContent = visitasUnicas.size;
+}
+
+// Semáforo de antigüedad: toma el último dato cargado por lote (visita o
+// carga masiva, vía ultimaPorLoteVisitas que no filtra por tipo_registro)
+// y clasifica cada lote según los días transcurridos desde esa carga.
+let semaforoUnidad = 'ha'; // 'ha' | 'lotes' | 'productores'
+let datosCacheSeguimiento = null;
+let ultimaCacheSeguimiento = null;
+let semaforoDatos = { ha:{verde:0,amarillo:0,rojo:0}, lotes:{verde:0,amarillo:0,rojo:0}, productores:{verde:0,amarillo:0,rojo:0} };
+
+function renderSemaforoActualizacion(datos, ultima) {
+  datosCacheSeguimiento = datos;
+  ultimaCacheSeguimiento = ultima;
+  actualizarSemaforo();
+}
+
+function actualizarSemaforo() {
+  const datos = datosCacheSeguimiento;
+  const ultima = ultimaCacheSeguimiento;
+  const hoy = new Date();
+  const cont = { ha:{verde:0,amarillo:0,rojo:0}, lotes:{verde:0,amarillo:0,rojo:0}, productores:{verde:0,amarillo:0,rojo:0} };
+  const productoresPorColor = { verde:new Set(), amarillo:new Set(), rojo:new Set() };
+
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    let dias = Infinity;
+    if (v && v.fecha_visita) {
+      const f = new Date(aFechaISO(v.fecha_visita));
+      if (!isNaN(f)) dias = Math.floor((hoy - f) / 86400000);
+    }
+    const balde = dias <= 10 ? 'verde' : dias <= 20 ? 'amarillo' : 'rojo';
+    cont.lotes[balde]++;
+    cont.ha[balde] += l.area_ha;
+    productoresPorColor[balde].add(l.productor || 'Sin dato');
+  });
+
+  cont.productores.verde = productoresPorColor.verde.size;
+  cont.productores.amarillo = productoresPorColor.amarillo.size;
+  cont.productores.rojo = productoresPorColor.rojo.size;
+
+  semaforoDatos = cont;
+  pintarSemaforo();
+}
+
+function cambiarSemaforoUnidad(valor) {
+  semaforoUnidad = valor;
+  pintarSemaforo();
+}
+
+function pintarSemaforo() {
+  const d = semaforoDatos[semaforoUnidad];
+  ['verde','amarillo','rojo'].forEach(color=>{
+    const valor = d[color];
+    const texto = semaforoUnidad === 'ha'
+      ? valor.toLocaleString('es-AR',{maximumFractionDigits:1})
+      : valor;
+    document.getElementById('seg-semaforo-'+color).textContent = texto;
+    document.getElementById('seg-semaforo-dot-'+color).classList.toggle('encendido', valor > 0);
+  });
+}
+
+function renderKpiRendimiento(datos, ultima) {
+  let sumaProducto = 0;
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const rinde = v ? parseFloat(v.rinde_estimado_qqha) : NaN;
+    // Si todavía no hay rinde estimado para el lote, se considera 0 para el promedio general.
+    if (!isNaN(rinde) && rinde > 0) sumaProducto += rinde*l.area_ha;
+  });
+  const rindeProm = totalHa ? sumaProducto/totalHa : 0;
+  const tnTotal = sumaProducto/10; // qq/ha * ha = qq; 1 Tn = 10 qq
+  document.getElementById('seg-kpi-rinde').textContent = rindeProm.toLocaleString('es-AR',{maximumFractionDigits:1});
+  document.getElementById('seg-kpi-tn').textContent = tnTotal.toLocaleString('es-AR',{maximumFractionDigits:0}) + ' Tn totales';
+}
+
+function renderPieCondicion(datos, ultima) {
+  const porCondicion = {};
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const cond = (v && v.condicion_cultivo) ? v.condicion_cultivo : 'Sin dato';
+    porCondicion[cond] = (porCondicion[cond]||0) + l.area_ha;
+  });
+  const orden = [...CONDICIONES_CULTIVO, 'Sin dato'].filter(c => porCondicion[c]);
+  const labels = orden, valores = orden.map(c=>porCondicion[c]), colores = orden.map(c=>COLORES_CONDICION[c]||'#aaa');
+
+  if (charts.condicion) charts.condicion.destroy();
+  charts.condicion = new Chart(document.getElementById('seg-chart-condicion'), {
+    type:'pie',
+    data:{ labels, datasets:[{ data:valores, backgroundColor:colores }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'right',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} }
+    }
+  });
+}
+
+function renderFenologico(datos, ultima) {
+  const porEstado = {};
+  let sumaIndiceHa = 0, haConEstado = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const estado = v ? v.estado_fenologico : '';
+    const idx = ESTADOS_FENOLOGICOS.indexOf(estado);
+    const key = idx >= 0 ? estado : 'Sin dato';
+    porEstado[key] = (porEstado[key]||0) + l.area_ha;
+    if (idx >= 0) { sumaIndiceHa += idx*l.area_ha; haConEstado += l.area_ha; }
+  });
+  const orden = [...ESTADOS_FENOLOGICOS, 'Sin dato'].filter(e => porEstado[e]);
+  const labels = orden, valores = orden.map(e=>porEstado[e]);
+  const colores = orden.map(e => { const i = ESTADOS_FENOLOGICOS.indexOf(e); return i>=0 ? COLORES_FENOLOGICO[i] : '#aaa'; });
+
+  if (charts.fenologico) charts.fenologico.destroy();
+  charts.fenologico = new Chart(document.getElementById('seg-chart-fenologico'), {
+    type:'pie',
+    data:{ labels, datasets:[{ data:valores, backgroundColor:colores }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'right',labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ha`}} }
+    }
+  });
+
+  const indicePromedio = haConEstado ? Math.round(sumaIndiceHa/haConEstado) : -1;
+  const estadoPromedio = indicePromedio >= 0 ? ESTADOS_FENOLOGICOS[indicePromedio] : null;
+  document.getElementById('planta-soja-svg').innerHTML = svgPlantaSoja(indicePromedio);
+  document.getElementById('planta-estado-txt').textContent = estadoPromedio || 'Sin datos suficientes';
+}
+
+// ─── Figura procedural de planta de soja según estado fenológico ──
+// Una etapa por cada valor de ESTADOS_FENOLOGICOS, con parámetros propios
+// (no fórmulas continuas) para que cada estadio se vea claramente distinto:
+// arranca como plántula chica con pocas hojas (VE), crece y se llena de
+// hojas en la fase vegetativa (V2-V4 a V5-V8), florece solo en el arranque
+// reproductivo (R1-R2), forma y llena vainas desde R3-R4 en adelante, y al
+// madurar (R6 a R7-R8) pierde hojas progresivamente, el tallo y las hojas
+// que quedan se ponen amarillas/marrones, y predominan las vainas.
+const ETAPAS_PLANTA = [
+  { stem:16,  leafPairs:1, leafScale:0.55, leafColor:'#9fd17a', stemColor:'#5a9a3a', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // VE
+  { stem:42,  leafPairs:3, leafScale:0.8,  leafColor:'#7ab648', stemColor:'#4a8a2e', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // V2-V4
+  { stem:75,  leafPairs:5, leafScale:1.0,  leafColor:'#509a35', stemColor:'#3a8f2e', flores:0, vainas:0, vainaColor:'#5b8f4e' }, // V5-V8
+  { stem:100, leafPairs:6, leafScale:1.0,  leafColor:'#3a8f2e', stemColor:'#3a8f2e', flores:5, vainas:0, vainaColor:'#5b8f4e' }, // R1-R2
+  { stem:108, leafPairs:6, leafScale:1.0,  leafColor:'#2f7d27', stemColor:'#2f7d27', flores:2, vainas:3, vainaColor:'#5b8f4e' }, // R3-R4
+  { stem:110, leafPairs:6, leafScale:0.95, leafColor:'#2a6e22', stemColor:'#2a6e22', flores:0, vainas:5, vainaColor:'#6f9c4a' }, // R5
+  { stem:104, leafPairs:3, leafScale:0.85, leafColor:'#a98a2e', stemColor:'#8a6a2a', flores:0, vainas:6, vainaColor:'#9c8a3a' }, // R6
+  { stem:92,  leafPairs:0, leafScale:0,    leafColor:'#c9a227', stemColor:'#7a5a22', flores:0, vainas:7, vainaColor:'#8a6a2a' }  // R7-R8
+];
+
+function svgPlantaSoja(indice) {
+  const e = ETAPAS_PLANTA[Math.min(Math.max(indice,0), ETAPAS_PLANTA.length-1)];
+  const baseY = 185, topY = baseY - e.stem;
+
+  let hojas = '';
+  for (let i=0; i<e.leafPairs; i++) {
+    const y = baseY - 12 - (e.stem-15) * (i/Math.max(e.leafPairs-1,1));
+    const lado = i%2===0 ? 1 : -1;
+    const s = e.leafScale;
+    hojas += `
+      <g transform="translate(70,${y})">
+        <ellipse cx="${lado*16*s}" cy="-2" rx="${11*s}" ry="${6*s}" fill="${e.leafColor}" transform="rotate(${lado*-25})"/>
+        <ellipse cx="${lado*26*s}" cy="4" rx="${9*s}" ry="${5*s}" fill="${e.leafColor}" transform="rotate(${lado*-10})"/>
+        <ellipse cx="${lado*8*s}" cy="6" rx="${9*s}" ry="${5*s}" fill="${e.leafColor}" transform="rotate(${lado*-35})"/>
+      </g>`;
+  }
+
+  let flores = '';
+  for (let i=0; i<e.flores; i++) {
+    flores += `<circle cx="${64+i*4}" cy="${topY+6+i*3}" r="2.4" fill="#9c6bd1"/>`;
+  }
+
+  let vainas = '';
+  for (let i=0; i<e.vainas; i++) {
+    const y = baseY - 18 - i*15;
+    const lado = i%2===0?1:-1;
+    vainas += `<ellipse cx="${70+lado*13}" cy="${y}" rx="5" ry="9" fill="${e.vainaColor}" stroke="#2a4e1e" stroke-width="0.5" transform="rotate(${lado*20} ${70+lado*13} ${y})"/>`;
+  }
+
+  return `<svg width="130" height="190" viewBox="0 0 140 195">
+    <line x1="70" y1="${baseY}" x2="70" y2="${topY}" stroke="${e.stemColor}" stroke-width="4" stroke-linecap="round"/>
+    ${hojas}
+    ${vainas}
+    ${flores}
+    <ellipse cx="70" cy="${baseY+3}" rx="20" ry="4" fill="#5a4a2f" opacity=".35"/>
+  </svg>`;
+}
+
+// ─── Evolución temporal del pronóstico de rendimiento ────
+function claveAFecha(key) {
+  const mesAlmacen = Math.floor(key/100), dia = key%100;
+  const mes = mesAlmacen > 12 ? mesAlmacen - 12 : mesAlmacen;
+  return `${String(dia).padStart(2,'0')}/${MESES_ABR[mes-1]}`;
+}
+
+function renderPronosticoEvolucion(datos) {
+  const idsVisibles = new Set(datos.map(l=>l.id_lote));
+  const areaPorLote = {}; datos.forEach(l => areaPorLote[l.id_lote] = l.area_ha);
+
+  const INICIO_KEY = 9*100 + 15;        // 15-sep
+  const FIN_KEY    = (5+12)*100 + 30;   // 30-may
+
+  const eventos = allVisitas
+    .filter(v => idsVisibles.has(v.id_lote) && v.rinde_estimado_qqha)
+    .map(v => ({ id_lote: v.id_lote, fechaISO: aFechaISO(v.fecha_visita), rinde: parseFloat(v.rinde_estimado_qqha) }))
+    .filter(v => v.fechaISO && !isNaN(v.rinde))
+    .map(v => ({ ...v, key: ordenCampana(v.fechaISO) }))
+    .filter(v => v.key >= INICIO_KEY && v.key <= FIN_KEY)
+    .sort((a,b) => a.key - b.key);
+
+  const claves = new Set([INICIO_KEY, FIN_KEY]);
+  eventos.forEach(e => claves.add(e.key));
+  const clavesOrdenadas = [...claves].sort((a,b)=>a-b);
+
+  const estado = {};
+  let cursor = 0;
+  const data = clavesOrdenadas.map(k => {
+    while (cursor < eventos.length && eventos[cursor].key <= k) {
+      estado[eventos[cursor].id_lote] = eventos[cursor].rinde;
+      cursor++;
+    }
+    let tn = 0;
+    Object.keys(estado).forEach(idLote => {
+      const area = areaPorLote[idLote]; if (!area) return;
+      tn += estado[idLote] * area / 10;
+    });
+    return tn;
+  });
+
+  const labels = clavesOrdenadas.map(claveAFecha);
+
+  if (charts.pronostico) charts.pronostico.destroy();
+  charts.pronostico = new Chart(document.getElementById('seg-chart-pronostico'), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Pronóstico (Tn)', data, borderColor:'#3a6b2a', backgroundColor:'#3a6b2a26', fill:true, tension:0, cubicInterpolationMode:'monotone', pointRadius:2, stepped:'before' }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:0})} Tn`}} },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:'Tn',font:{size:10}}} }
+    }
+  });
+}
+
+// ─── Avance de cosecha ────────────────────────────────────
+function renderCosecha(datos, ultima) {
+  let haCosechadas = 0;
+  const totalHa = datos.reduce((s,l)=>s+l.area_ha,0);
+  datos.forEach(l => { const v = ultima[l.id_lote]; if (v && esTrue(v.lote_cosechado)) haCosechadas += l.area_ha; });
+  const pct = totalHa ? (haCosechadas/totalHa*100) : 0;
+  document.getElementById('seg-kpi-cosecha').textContent = pct.toFixed(0);
+  document.getElementById('seg-cosecha-bar').style.width = Math.min(pct,100).toFixed(0)+'%';
+  document.getElementById('seg-cosecha-sub').textContent = `${haCosechadas.toLocaleString('es-AR',{maximumFractionDigits:1})} de ${totalHa.toLocaleString('es-AR',{maximumFractionDigits:1})} ha cosechadas`;
+
+  renderCosechaEvolucion(datos);
+}
+
+// Evolución de cosecha (solapas Principal y Seguimiento): para cada
+// lote toma su última fecha de cosecha registrada (esté confirmada o no
+// vía lote_cosechado) y grafica el avance acumulado entre 15-mar y 15-jun,
+// acotado a la campaña actual, con selector % avance / ha / tn.
+function calcularEvolucionCosechaAcumulada(datos, unidad) {
+  const INICIO_KEY = 315;   // 15 de marzo
+  const FIN_KEY = 615;      // 15 de junio
+  const porFecha = {};
+
+  const ultima = ultimaPorLoteVisitas(datos);
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && v.fecha_cosecha_estimada) {
+      const fecha = new Date(aFechaISO(v.fecha_cosecha_estimada));
+      if (!isNaN(fecha)) {
+        const mes = fecha.getMonth() + 1;
+        const dia = fecha.getDate();
+        const key = mes * 100 + dia;
+
+        if (key >= INICIO_KEY && key <= FIN_KEY) {
+          if (!porFecha[key]) porFecha[key] = { ha:0, tn:0 };
+          porFecha[key].ha += l.area_ha;
+
+          const rinde = parseFloat(v.rinde_estimado_qqha);
+          if (!isNaN(rinde) && rinde > 0) {
+            porFecha[key].tn += rinde * l.area_ha / 10;
+          }
+        }
+      }
+    }
+  });
+
+  const clavesSet = new Set([INICIO_KEY, FIN_KEY]);
+  Object.keys(porFecha).forEach(k => clavesSet.add(Number(k)));
+  const claves = [...clavesSet].sort((a,b) => a-b);
+
+  const keyAFecha = (key) => {
+    const mes = Math.floor(key/100);
+    const dia = key % 100;
+    return `${String(dia).padStart(2,'0')}/${MESES_ABR[mes-1]}`;
+  };
+  const labels = claves.map(keyAFecha);
+
+  const totalHa = datos.reduce((s,l) => s + l.area_ha, 0);
+
+  let acumulado = { ha:0, tn:0 };
+  const data = claves.map(k => {
+    acumulado.ha += (porFecha[k]?.ha || 0);
+    acumulado.tn += (porFecha[k]?.tn || 0);
+    if (unidad === 'pct') {
+      return totalHa ? (acumulado.ha / totalHa * 100) : 0;
+    } else if (unidad === 'tn') {
+      return acumulado.tn;
+    }
+    return acumulado.ha;
+  });
+
+  return { labels, data };
+}
+
+function dibujarChartCosechaEvolucion(canvasId, chartKey, datos, unidad) {
+  const { labels, data } = calcularEvolucionCosechaAcumulada(datos, unidad);
+  const unidadLabel = unidad === 'pct' ? '% avance' : (unidad === 'tn' ? 'Toneladas' : 'Hectáreas');
+  if (charts[chartKey]) charts[chartKey].destroy();
+  charts[chartKey] = new Chart(document.getElementById(canvasId), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Cosecha', data, borderColor:'#c8a04a', backgroundColor:'#c8a04a26', fill:true, tension:0.3, cubicInterpolationMode:'monotone', pointRadius:2 }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>`${ctx.raw.toLocaleString('es-AR',{maximumFractionDigits:1})} ${unidad === 'pct' ? '%' : unidad}`}}
+      },
+      scales:{ x:{ticks:{font:{size:10}}}, y:{beginAtZero:true,ticks:{font:{size:10}},title:{display:true,text:unidadLabel,font:{size:10}}} }
+    }
+  });
+}
+
+// Termómetro de cosecha: la línea roja marca el % esperado a la fecha de
+// hoy según la última fecha de cosecha registrada por lote (confirmada o
+// no), y el mercurio rojo se llena hasta el % que efectivamente está
+// confirmado (lote_cosechado) a esa misma fecha.
+function calcularTermometroCosecha(datos) {
+  const ultima = ultimaPorLoteVisitas(datos);
+  const hoyISO = aFechaISO(new Date());
+  const totalHa = datos.reduce((s,l) => s + l.area_ha, 0);
+  let haRegistrada = 0, haConfirmada = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    if (v && v.fecha_cosecha_estimada) {
+      const fISO = aFechaISO(v.fecha_cosecha_estimada);
+      if (fISO && fISO <= hoyISO) {
+        haRegistrada += l.area_ha;
+        if (esTrue(v.lote_cosechado)) haConfirmada += l.area_ha;
+      }
+    }
+  });
+  const pctLinea = totalHa ? Math.min(100, haRegistrada / totalHa * 100) : 0;
+  const pctMercurio = totalHa ? Math.min(100, haConfirmada / totalHa * 100) : 0;
+  return { pctLinea, pctMercurio };
+}
+
+function pintarTermometroCosecha(prefix, datos) {
+  const { pctLinea, pctMercurio } = calcularTermometroCosecha(datos);
+  document.getElementById(prefix+'-mercurio').style.height = pctMercurio.toFixed(1)+'%';
+  document.getElementById(prefix+'-linea').style.bottom = pctLinea.toFixed(1)+'%';
+  document.getElementById(prefix+'-linea-label').textContent = pctLinea.toFixed(0)+'%';
+  document.getElementById(prefix+'-leyenda').innerHTML = `Confirmado<br><b>${pctMercurio.toFixed(0)}%</b>`;
+}
+
+let unidadSegCosecha = 'pct'; // 'pct' | 'ha' | 'tn'
+let datosCacheSegCosecha = null;
+
+function renderCosechaEvolucion(datos) {
+  const campanaActual = campanaMasReciente();
+  datosCacheSegCosecha = datos.filter(l => l.campana === campanaActual);
+  dibujarChartCosechaEvolucion('seg-chart-cosecha', 'cosecha', datosCacheSegCosecha, unidadSegCosecha);
+  pintarTermometroCosecha('seg-termometro', datosCacheSegCosecha);
+}
+
+function cambiarUnidadSegCosecha(valor) {
+  unidadSegCosecha = valor;
+  dibujarChartCosechaEvolucion('seg-chart-cosecha', 'cosecha', datosCacheSegCosecha, unidadSegCosecha);
+}
+
+let unidadPrincipalCosecha = 'pct'; // 'pct' | 'ha' | 'tn'
+let datosCachePrincipalCosecha = null;
+
+function renderCosechaEvolucionPrincipal(datos) {
+  datosCachePrincipalCosecha = datos;
+  dibujarChartCosechaEvolucion('chart-cosecha-principal', 'cosechaPrincipal', datosCachePrincipalCosecha, unidadPrincipalCosecha);
+  pintarTermometroCosecha('principal-termometro', datosCachePrincipalCosecha);
+}
+
+function cambiarUnidadPrincipalCosecha(valor) {
+  unidadPrincipalCosecha = valor;
+  dibujarChartCosechaEvolucion('chart-cosecha-principal', 'cosechaPrincipal', datosCachePrincipalCosecha, unidadPrincipalCosecha);
+}
+
+// ─── Avance: % de has confirmadas vs. pendientes, al día de hoy, sobre el total de has inscriptas ───
+function renderAvance(datos) {
+  const hoy = aFechaISO(new Date());
+  const ultima = ultimaPorLoteVisitas(datos);
+  const totalHa = datos.reduce((s,l) => s + l.area_ha, 0);
+
+  let haConfS = 0, haPendS = 0;
+  datos.forEach(l => {
+    const fechaEstS = l.fecha_siembra_estimada;
+    if (!fechaEstS || fechaEstS > hoy) return;
+    const v = ultima[l.id_lote];
+    if (v && esTrue(v.lote_sembrado)) haConfS += l.area_ha;
+    else haPendS += l.area_ha;
+  });
+  const pctConfS = totalHa ? haConfS/totalHa*100 : 0;
+  const pctPendS = totalHa ? haPendS/totalHa*100 : 0;
+
+  let haConfC = 0, haPendC = 0;
+  datos.forEach(l => {
+    const v = ultima[l.id_lote];
+    const fechaEstC = v ? aFechaISO(v.fecha_cosecha_estimada) : '';
+    if (!fechaEstC || fechaEstC > hoy) return;
+    if (esTrue(v.lote_cosechado)) haConfC += l.area_ha;
+    else haPendC += l.area_ha;
+  });
+  const pctConfC = totalHa ? haConfC/totalHa*100 : 0;
+  const pctPendC = totalHa ? haPendC/totalHa*100 : 0;
+
+  document.getElementById('avance-siembra-pct').textContent = pctConfS.toFixed(0)+'%';
+  document.getElementById('avance-siembra-pend').textContent = pctPendS.toFixed(0)+'% sin confirmar';
+  document.getElementById('avance-cosecha-pct').textContent = pctConfC.toFixed(0)+'%';
+  document.getElementById('avance-cosecha-pend').textContent = pctPendC.toFixed(0)+'% sin confirmar';
+}
+
+cargarDatos();
+</script>
+</body>
+</html>
