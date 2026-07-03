@@ -404,11 +404,26 @@ function esSiNoTrue(v) {
 
 function filaLoteHTML(l, manual) {
   const ultima = manual ? null : ultimaVisitaDeLote(l.id_lote);
-  const fechaSiembraPrevia  = ultima ? aFechaISO(ultima.fecha_siembra) : '';
+  // La fecha de siembra prioriza el último dato agronómico real cargado
+  // (una visita/carga masiva con la fecha efectivamente completada); si no
+  // hay ninguna todavía (o la única fila existente es el registro
+  // "inscripcion" que se autogenera sin fecha), cae al dato declarado al
+  // dar de alta el lote.
+  const fechaSiembraPrevia  = (ultima && aFechaISO(ultima.fecha_siembra)) || aFechaISO(l.fecha_siembra_estimada) || '';
   const fechaCosechaPrevia  = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
   const cosechadoPrevio = ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
   const siembraPrevia = (ultima && ultima.siembra) ? ultima.siembra : (l.siembra || '1ra');
+  // El resto de los campos de la última visita real también se prellenan,
+  // así el técnico ve y corrige el último valor cargado en vez de arrancar
+  // de cero en cada visita nueva.
+  const estadoFenologicoPrevio = (ultima && ultima.estado_fenologico) || '';
+  const estadoMalezasPrevio    = (ultima && ultima.estado_malezas) || '';
+  const resistentesPrevio      = ultima ? esSiNoTrue(ultima.malezas_resistentes) : false;
+  const plagasPrevio           = (ultima && ultima.observacion_plagas) || '';
+  const condicionPrevia        = (ultima && ultima.condicion_cultivo) || '';
+  const rindePrevio            = (ultima && ultima.rinde_estimado_qqha) || '';
+  const notasPrevias           = (ultima && ultima.notas) || '';
   const loteCelda = manual
     ? `<input type="text" class="f-lote-nombre" placeholder="Lote" value="${escAttr(l.lote||'')}" style="min-width:80px">`
     : `<strong>${l.lote||'—'}</strong>`;
@@ -432,20 +447,20 @@ function filaLoteHTML(l, manual) {
     <td>
       <select class="f-estado-fenologico">
         <option value="">—</option>
-        ${ESTADOS_FENOLOGICOS.map(e=>`<option>${e}</option>`).join('')}
+        ${ESTADOS_FENOLOGICOS.map(e=>`<option ${e===estadoFenologicoPrevio?'selected':''}>${e}</option>`).join('')}
       </select>
     </td>
-    <td><input type="text" class="f-estado-malezas" placeholder="Ej: bajo control"></td>
-    <td style="text-align:center"><input type="checkbox" class="f-resistentes"></td>
-    <td><textarea class="f-plagas" placeholder="Observaciones..."></textarea></td>
+    <td><input type="text" class="f-estado-malezas" placeholder="Ej: bajo control" value="${escAttr(estadoMalezasPrevio)}"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-resistentes" ${resistentesPrevio?'checked':''}></td>
+    <td><textarea class="f-plagas" placeholder="Observaciones...">${escAttr(plagasPrevio)}</textarea></td>
     <td>
       <select class="f-condicion">
         <option value="">—</option>
-        ${CONDICIONES_CULTIVO.map(c=>`<option>${c}</option>`).join('')}
+        ${CONDICIONES_CULTIVO.map(c=>`<option ${c===condicionPrevia?'selected':''}>${c}</option>`).join('')}
       </select>
     </td>
-    <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha"></td>
-    <td><textarea class="f-notas" placeholder="Notas..."></textarea></td>
+    <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha" value="${escAttr(rindePrevio)}"></td>
+    <td><textarea class="f-notas" placeholder="Notas...">${escAttr(notasPrevias)}</textarea></td>
     <td>${manual?'<button type="button" class="btn btn-secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button>':''}</td>
   </tr>`;
 }

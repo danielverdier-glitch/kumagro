@@ -313,7 +313,7 @@ function valorOrden(l, col) {
     }
     case 'sembrado': return ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
     case 'cosechado': return ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
-    case 'fecha_siembra': return ultima ? aFechaISO(ultima.fecha_siembra) : '';
+    case 'fecha_siembra': return (ultima && aFechaISO(ultima.fecha_siembra)) || aFechaISO(l.fecha_siembra_estimada) || '';
     case 'fecha_cosecha': return ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
     case 'tecnico': return tecnicoDeLote(l);
     default: return '';
@@ -383,7 +383,9 @@ function filaHTML(l) {
   const semillaUpPrevio= ultima && ultima.semilla_up ? ultima.semilla_up : 'Semilla';
   const siembraPrevia  = ultima && ultima.siembra ? ultima.siembra : (l.siembra || '1ra');
   const sembradoPrevio = ultima ? esSiNoTrue(ultima.lote_sembrado) : false;
-  const fechaSiembraPrevia = ultima ? aFechaISO(ultima.fecha_siembra) : '';
+  // Si todavía no hay ninguna visita/carga cargada para el lote, cae a la
+  // fecha de siembra declarada al dar de alta el lote (carga_lote_SNGM.html).
+  const fechaSiembraPrevia = (ultima && aFechaISO(ultima.fecha_siembra)) || aFechaISO(l.fecha_siembra_estimada) || '';
   const fechaCosechaPrevia = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
   const rindePrevio    = ultima && ultima.rinde_estimado_qqha ? parseFloat(ultima.rinde_estimado_qqha) : '';
   const cosechadoPrevio= ultima ? esSiNoTrue(ultima.lote_cosechado) : false;

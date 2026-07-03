@@ -420,7 +420,10 @@ async function asegurarSemillaUpPorDefecto() {
     const registro = {
       id_visita: 'INSCRIPCION-' + l.id_lote, fecha_visita: fechaHoy, tecnico:'',
       productor: l.productor, nombre_campo: l.nombre_campo, id_lote: l.id_lote, lote: l.lote||'',
-      lat_visita:'', lng_visita:'', lote_sembrado:false, fecha_siembra:'', fecha_cosecha_estimada:'',
+      // La fecha de siembra se copia del alta del lote (aFechaISO(l.fecha_siembra_estimada)):
+      // este registro es un placeholder solo para setear semilla_up por defecto, no debe
+      // "tapar" con un campo vacío el dato real que ya se cargó en carga_lote_SNGM.html.
+      lat_visita:'', lng_visita:'', lote_sembrado:false, fecha_siembra: aFechaISO(l.fecha_siembra_estimada), fecha_cosecha_estimada:'',
       estado_fenologico:'', estado_malezas:'', malezas_resistentes:false, observacion_plagas:'',
       condicion_cultivo:'', rinde_estimado_qqha:'', notas:'', imagenes:'', fecha_carga: new Date().toISOString(),
       lote_cosechado:'No', tipo_registro:'inscripcion', ha_plan:'', semilla_up:'Semilla',
