@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kumagro · Visitas técnicas SNGM</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  :root {
+    --gh-green:#3a6b2a; --gh-green-dark:#2a4e1e; --gh-green-light:#e8f0e4;
+    --gh-gold:#c8a04a; --gh-gold-light:#fdf6e8;
+    --lote-blue:#1a56db;
+    --text:#1a1a1a; --text-soft:#555; --border:#d0d8ca;
+    --surface:#fff; --bg:#f4f6f2; --radius:10px;
+    --font:'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+  header{background:var(--gh-green-dark);padding:14px 28px;display:flex;align-items:center;gap:14px}
+  header .logo{font-size:13px;font-weight:700;color:white;letter-spacing:.05em;text-transform:uppercase}
+  header .logo span{color:var(--gh-gold)}
+  header .divider{width:1px;height:24px;background:rgba(255,255,255,.2)}
+  header .subtitle{font-size:12px;color:rgba(255,255,255,.6)}
+  .container{max-width:980px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;color:var(--gh-green-dark);margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--text-soft);margin-bottom:28px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+  .card-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--gh-green);margin-bottom:18px;padding-bottom:10px;border-bottom:2px solid var(--gh-green-light)}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+  label{display:block;font-size:12px;font-weight:600;color:var(--text-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+  input[type=text],input[type=date],input[type=number],select,textarea{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:14px;font-family:var(--font);color:var(--text);background:white;transition:border-color .15s;outline:none}
+  textarea{resize:vertical;min-height:54px}
+  input:focus,select:focus,textarea:focus{border-color:var(--gh-green);box-shadow:0 0 0 3px rgba(58,107,42,.1)}
+  .required{color:#c0392b}
+  #map{height:380px;border-radius:8px;border:1.5px solid var(--border)}
+  .map-hint{font-size:12px;color:var(--text-soft);margin-top:8px;display:flex;align-items:flex-start;gap:6px}
+  .map-hint::before{content:"i";background:var(--gh-green-light);color:var(--gh-green);border-radius:50%;width:18px;height:18px;min-width:18px;display:inline-flex;align-items:center;justify-content:center;font-style:italic;font-weight:bold}
+  #punto-info{display:none;margin-top:12px;background:var(--gh-green-light);border:1px solid var(--border);border-left:3px solid var(--gh-green);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--gh-green-dark)}
+  .upload-zone{border:2px dashed var(--border);border-radius:8px;padding:28px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:var(--bg)}
+  .upload-zone:hover,.upload-zone.drag{border-color:var(--gh-green);background:var(--gh-green-light)}
+  .upload-zone .icon{font-size:28px;margin-bottom:8px}
+  .upload-zone p{font-size:13px;color:var(--text-soft)}
+  .upload-zone strong{color:var(--gh-green)}
+  #img-input{display:none}
+  .img-list{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .img-thumb{position:relative;width:84px;height:84px;border-radius:6px;overflow:hidden;border:1.5px solid var(--border)}
+  .img-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+  .img-thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:white;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead tr{background:var(--gh-green-dark);color:white}
+  thead th{padding:10px 12px;text-align:left;font-weight:600;font-size:11px;letter-spacing:.04em;white-space:nowrap}
+  tbody tr{border-bottom:1px solid var(--border)}
+  tbody td{padding:8px 10px;vertical-align:middle}
+  tbody td input,tbody td select,tbody td textarea{min-width:120px;font-size:13px;padding:6px 8px}
+  tbody td textarea{min-width:160px;min-height:38px}
+  .empty-row td{text-align:center;color:var(--text-soft);font-style:italic;padding:24px}
+  .btn-row{display:flex;justify-content:flex-end;gap:10px;margin-top:8px}
+  .btn{padding:10px 22px;border-radius:7px;font-size:14px;font-weight:600;border:none;cursor:pointer;transition:opacity .15s,transform .1s;font-family:var(--font)}
+  .btn:active{transform:scale(.98)}
+  .btn-primary{background:var(--gh-green);color:white}.btn-primary:hover{background:var(--gh-green-dark)}
+  .btn-secondary{background:var(--gh-green-light);color:var(--gh-green-dark);border:1.5px solid var(--gh-green)}.btn-secondary:hover{background:var(--gh-green);color:white}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  #toast{position:fixed;bottom:28px;right:28px;background:var(--gh-green-dark);color:white;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:600;transform:translateY(80px);opacity:0;transition:transform .3s,opacity .3s;z-index:9999;max-width:360px}
+  #toast.show{transform:translateY(0);opacity:1}
+  #toast.error{background:#b33}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);border-top-color:white;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media(max-width:700px){.grid-2,.grid-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Grobocopatel<span> Hnos.</span></div>
+  <div class="divider"></div>
+  <div class="subtitle">Kumagro · Programa SNGM · Acceso interno equipo técnico</div>
+</header>
+
+<div class="container">
+  <h1>Registro de visitas técnicas</h1>
+  <p class="page-sub">Cargá la información de la visita a campo. Los datos se toman para el seguimiento de cada lote.</p>
+
+  <div id="loading-bar" class="map-hint">Cargando productores y lotes del programa...</div>
+
+  <!-- Datos generales de la visita -->
+  <div class="card">
+    <div class="card-title">Datos de la visita</div>
+    <div class="grid-3">
+      <div>
+        <label>Productor <span class="required">*</span></label>
+        <select id="sel-productor" onchange="onProductorChange()">
+          <option value="">Seleccioná...</option>
+        </select>
+        <input type="text" id="productor-otro" class="campo-otro" placeholder="Nombre del productor" style="display:none;margin-top:8px" oninput="renderTablaLotes([]); limpiarPoligonosExistentes()">
+      </div>
+      <div>
+        <label>Campo <span class="required">*</span></label>
+        <select id="sel-campo" onchange="onCampoChange()" disabled>
+          <option value="">Elegí primero un productor</option>
+        </select>
+        <input type="text" id="campo-otro" class="campo-otro" placeholder="Nombre del campo" style="display:none;margin-top:8px" oninput="onCampoOtroInput()">
+      </div>
+      <div>
+        <label>Fecha de la visita <span class="required">*</span></label>
+        <input type="date" id="fecha-visita">
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:16px">
+      <div>
+        <label>Técnico</label>
+        <select id="sel-tecnico" onchange="onTecnicoChange()">
+          <option value="">Seleccioná...</option>
+        </select>
+        <input type="text" id="tecnico-otro" class="campo-otro" placeholder="Nombre del técnico" style="display:none;margin-top:8px">
+      </div>
+    </div>
+  </div>
+
+  <!-- Punto de la visita -->
+  <div class="card">
+    <div class="card-title">Punto de la visita</div>
+    <div class="btn-row" style="justify-content:flex-start;margin-bottom:10px">
+      <button type="button" class="btn btn-secondary" onclick="usarUbicacionActual()">📡 Usar mi ubicación actual</button>
+    </div>
+    <div id="map"></div>
+    <p class="map-hint">Hacé clic en el mapa sobre el lugar donde se realizó la visita para georeferenciarla, o usá el botón de ubicación satelital del equipo.</p>
+    <div id="punto-info"></div>
+  </div>
+
+  <!-- Fotos -->
+  <div class="card">
+    <div class="card-title">Fotos de la visita</div>
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('img-input').click()"
+         ondragover="event.preventDefault();this.classList.add('drag')"
+         ondragleave="this.classList.remove('drag')"
+         ondrop="handleDropImg(event)">
+      <div class="icon">📷</div>
+      <p><strong>Hacé clic para seleccionar</strong> o arrastrá las fotos aquí</p>
+      <p style="margin-top:6px;font-size:11px;opacity:.7">Podés subir varias imágenes (JPG / PNG)</p>
+    </div>
+    <input type="file" id="img-input" accept="image/*" multiple onchange="handleImgFiles(this.files)">
+    <div class="img-list" id="img-list"></div>
+  </div>
+
+  <!-- Lotes del campo -->
+  <div class="card">
+    <div class="card-title">Lotes del campo seleccionado</div>
+    <p class="map-hint" style="margin-top:0;margin-bottom:14px">Todos los campos son opcionales. Solo se guardan los lotes en los que completes al menos un dato.</p>
+    <div class="table-wrap">
+      <table id="tabla-lotes">
+        <thead>
+          <tr>
+            <th>¿Sembrado?</th><th>Lote</th><th>Variedad</th><th>Siembra</th><th>Fecha siembra</th>
+            <th>Fecha cosecha (est./real)</th><th>¿Cosechado?</th>
+            <th>Estado fenológico</th><th>Estado malezas</th><th>¿Resistentes?</th>
+            <th>Plagas / enfermedades</th><th>Condición cultivo</th><th>Rinde est. (qq/ha)</th>
+            <th>Notas</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body">
+          <tr class="empty-row"><td colspan="15">Elegí un productor y un campo para ver sus lotes</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="btn-row" style="justify-content:flex-start;margin-top:14px">
+      <button type="button" class="btn btn-secondary" onclick="agregarLoteManual()">+ Agregar lote</button>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-guardar" onclick="guardarVisita()">Guardar visita</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════
+//  CONFIG
+// ════════════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = '/api/gs';
+const IMG_FOLDER_ID   = 'TU_ID_DE_CARPETA_DE_IMAGENES_AQUI';
+
+const ESTADOS_FENOLOGICOS = ['VE','V2-V4','V5-V8','R1-R2','R3-R4','R5','R6','R7-R8'];
+const CONDICIONES_CULTIVO = ['Lote perdido','Muy mala','Mala','Regular','Buena','Muy Buena','Excelente'];
+
+const TECNICOS_BASE = ['Daniel','M. Victoria','Nano'];
+const OTRO = '__otro__';
+
+const PALETA_CAMPANAS = ['#1a56db','#dc2626','#059669','#d97706','#7c3aed','#0891b2','#be185d','#65a30d'];
+let campanaColorMap = {};
+function colorCampana(c) {
+  if (!(c in campanaColorMap)) {
+    campanaColorMap[c] = PALETA_CAMPANAS[Object.keys(campanaColorMap).length % PALETA_CAMPANAS.length];
+  }
+  return campanaColorMap[c];
+}
+
+const UMBRAL_PIN_PX = 26; // si el polígono mide menos de esto en pantalla, se muestra como pin
+
+function ajustarPinesLote(map, itemsArr) {
+  itemsArr.forEach(it=>{
+    const sw = map.latLngToContainerPoint(it.bounds.getSouthWest());
+    const ne = map.latLngToContainerPoint(it.bounds.getNorthEast());
+    const anchoPx = Math.abs(ne.x - sw.x);
+    const altoPx  = Math.abs(sw.y - ne.y);
+    const esChico = Math.max(anchoPx, altoPx) < UMBRAL_PIN_PX;
+    if (esChico) {
+      if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+      if (!map.hasLayer(it.marker)) it.marker.addTo(map);
+    } else {
+      if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+      if (!map.hasLayer(it.poly)) it.poly.addTo(map);
+    }
+  });
+}
+
+function crearItemLotePoligono(lote) {
+  const geom = JSON.parse(lote.poligono_geojson);
+  const ll = geom.coordinates[0].map(p=>[p[1],p[0]]);
+  const color = colorCampana(lote.campana);
+  const tooltipHtml = `<strong>${lote.nombre_campo}</strong>${lote.lote?' · '+lote.lote:''}<br>${lote.productor}<br><span style="color:#555">${lote.variedad||''}</span>`;
+
+  const poly = L.polygon(ll,{color,fillColor:color,fillOpacity:.5,weight:2,interactive:false});
+  poly.bindTooltip(tooltipHtml,{sticky:true});
+
+  const lat = parseFloat(lote.latitud_centroide), lng = parseFloat(lote.longitud_centroide);
+  const centro = (!isNaN(lat) && !isNaN(lng)) ? [lat,lng] : poly.getBounds().getCenter();
+  const marker = L.circleMarker(centro,{radius:6,color,fillColor:color,fillOpacity:.85,weight:2,interactive:false});
+  marker.bindTooltip(tooltipHtml,{sticky:true});
+
+  return { poly, marker, bounds: poly.getBounds() };
+}
+
+// ─── ESTADO ───────────────────────────────────────────────
+let allLotes   = [];
+let allVisitas = [];
+let map = null, marker = null;
+let poligonosLotesItems = [];
+let puntoVisita = null; // {lat,lng}
+let imagenes = []; // File[]
+let manualLoteSeq = 0;
+
+function campanaMasReciente() {
+  const campanas = [...new Set(allLotes.map(l=>l.campana))].sort();
+  return campanas[campanas.length-1];
+}
+
+// Las visitas solo tienen sentido registrarlas contra lotes de la campaña
+// activa; los productores/campos/lotes de campañas anteriores no se ofrecen.
+function lotesCampanaActiva() {
+  const campana = campanaMasReciente();
+  return allLotes.filter(l => l.campana === campana);
+}
+
+// ─── LOCALSTORAGE EXTRAS ──────────────────────────────────
+function getExtras(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; } catch(e) { return []; }
+}
+function addExtra(key, valor) {
+  if (!valor) return;
+  const extras = getExtras(key);
+  if (!extras.includes(valor)) { extras.push(valor); localStorage.setItem(key, JSON.stringify(extras)); }
+}
+function getExtrasCampo(productor) {
+  try { return JSON.parse(localStorage.getItem('visitas_campos_extra')) || {}; } catch(e) { return {}; }
+}
+function addExtraCampo(productor, campo) {
+  if (!productor || !campo) return;
+  const todos = getExtrasCampo();
+  const lista = todos[productor] || [];
+  if (!lista.includes(campo)) { lista.push(campo); todos[productor] = lista; localStorage.setItem('visitas_campos_extra', JSON.stringify(todos)); }
+}
+
+function poblarSelectConOtro(sel, opciones) {
+  const valorPrevio = sel.value;
+  sel.innerHTML = '<option value="">Seleccioná...</option>' +
+    opciones.map(o=>`<option value="${escAttr(o)}">${o}</option>`).join('') +
+    `<option value="${OTRO}">Otro...</option>`;
+  if (valorPrevio && opciones.includes(valorPrevio)) sel.value = valorPrevio;
+}
+
+// ─── CARGA DE DATOS ───────────────────────────────────────
+async function cargarDatos() {
+  try {
+    const [resLotes, resVisitas] = await Promise.all([
+      fetch(APPS_SCRIPT_URL + '?action=getLotes'),
+      fetch(APPS_SCRIPT_URL + '?action=getVisitas')
+    ]);
+    allLotes   = await resLotes.json();
+    allVisitas = await resVisitas.json();
+    document.getElementById('loading-bar').style.display = 'none';
+  } catch(e) {
+    document.getElementById('loading-bar').textContent = '⚠ No se pudieron cargar los datos del programa: ' + e.message;
+  }
+  construirProductores();
+  construirTecnicos();
+}
+
+function construirTecnicos() {
+  const opciones = [...TECNICOS_BASE, ...getExtras('visitas_tecnicos_extra')];
+  poblarSelectConOtro(document.getElementById('sel-tecnico'), opciones);
+}
+
+function onTecnicoChange() {
+  const sel = document.getElementById('sel-tecnico');
+  const otro = document.getElementById('tecnico-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+}
+
+function valorTecnico() {
+  const sel = document.getElementById('sel-tecnico');
+  if (sel.value === OTRO) return document.getElementById('tecnico-otro').value.trim();
+  return sel.value;
+}
+
+function construirProductores() {
+  const productores = [...new Set(lotesCampanaActiva().map(l=>l.productor).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+  const extras = getExtras('visitas_productores_extra').filter(p=>!productores.includes(p));
+  poblarSelectConOtro(document.getElementById('sel-productor'), [...productores, ...extras].sort((a,b)=>a.localeCompare(b)));
+}
+
+function onProductorChange() {
+  const sel = document.getElementById('sel-productor');
+  const otro = document.getElementById('productor-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+
+  const selCampo = document.getElementById('sel-campo');
+  const productor = valorProductor();
+  if (!productor) {
+    selCampo.innerHTML = '<option value="">Elegí primero un productor</option>';
+    selCampo.disabled = true;
+    document.getElementById('campo-otro').style.display = 'none';
+    renderTablaLotes([]);
+    limpiarPoligonosExistentes();
+    return;
+  }
+  const campos = [...new Set(lotesCampanaActiva().filter(l=>l.productor===productor).map(l=>l.nombre_campo).filter(Boolean))];
+  const extrasCampo = (getExtrasCampo()[productor] || []).filter(c=>!campos.includes(c));
+  poblarSelectConOtro(selCampo, [...campos, ...extrasCampo].sort((a,b)=>a.localeCompare(b)));
+  selCampo.disabled = false;
+  renderTablaLotes([]);
+  limpiarPoligonosExistentes();
+}
+
+function valorProductor() {
+  const sel = document.getElementById('sel-productor');
+  if (sel.value === OTRO) return document.getElementById('productor-otro').value.trim();
+  return sel.value;
+}
+
+function valorCampo() {
+  const sel = document.getElementById('sel-campo');
+  if (sel.value === OTRO) return document.getElementById('campo-otro').value.trim();
+  return sel.value;
+}
+
+function onCampoOtroInput() {
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
+  const lotes = lotesCampanaActiva().filter(l=>l.productor===productor && l.nombre_campo===campo);
+  renderTablaLotes(lotes);
+  dibujarPoligonosExistentes(lotes);
+}
+
+function onCampoChange() {
+  const sel = document.getElementById('sel-campo');
+  const otro = document.getElementById('campo-otro');
+  otro.style.display = sel.value === OTRO ? 'block' : 'none';
+  if (sel.value === OTRO) otro.focus();
+
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { renderTablaLotes([]); limpiarPoligonosExistentes(); return; }
+  const lotes = lotesCampanaActiva().filter(l=>l.productor===productor && l.nombre_campo===campo);
+  renderTablaLotes(lotes);
+  dibujarPoligonosExistentes(lotes);
+}
+
+function aFechaISO(v) {
+  if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v)) return v.slice(0,10);
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return d.toISOString().slice(0,10);
+}
+
+function ultimaVisitaDeLote(idLote) {
+  const visitas = allVisitas.filter(v=>v.id_lote===idLote);
+  if (!visitas.length) return null;
+  return visitas.reduce((a,b)=> (aFechaISO(a.fecha_visita) > aFechaISO(b.fecha_visita) ? a : b));
+}
+
+function esSiNoTrue(v) {
+  return v===true||v===1||v==='1'||v==='Sí'||v==='Si'||v==='SI'||v==='sí'||v==='si';
+}
+
+function filaLoteHTML(l, manual) {
+  const ultima = manual ? null : ultimaVisitaDeLote(l.id_lote);
+  // La fecha de siembra prioriza el último dato agronómico real cargado
+  // (una visita/carga masiva con la fecha efectivamente completada); si no
+  // hay ninguna todavía (o la única fila existente es el registro
+  // "inscripcion" que se autogenera sin fecha), cae al dato declarado al
+  // dar de alta el lote.
+  const fechaSiembraPrevia  = (ultima && aFechaISO(ultima.fecha_siembra)) || aFechaISO(l.fecha_siembra_estimada) || '';
+  const fechaCosechaPrevia  = ultima ? aFechaISO(ultima.fecha_cosecha_estimada) : '';
+  const sembradoPrevio = ultima ? (ultima.lote_sembrado===true||ultima.lote_sembrado===1||ultima.lote_sembrado==='1') : false;
+  const cosechadoPrevio = ultima ? esSiNoTrue(ultima.lote_cosechado) : false;
+  const siembraPrevia = (ultima && ultima.siembra) ? ultima.siembra : (l.siembra || '1ra');
+  // El resto de los campos de la última visita real también se prellenan,
+  // así el técnico ve y corrige el último valor cargado en vez de arrancar
+  // de cero en cada visita nueva.
+  const estadoFenologicoPrevio = (ultima && ultima.estado_fenologico) || '';
+  const estadoMalezasPrevio    = (ultima && ultima.estado_malezas) || '';
+  const resistentesPrevio      = ultima ? esSiNoTrue(ultima.malezas_resistentes) : false;
+  const plagasPrevio           = (ultima && ultima.observacion_plagas) || '';
+  const condicionPrevia        = (ultima && ultima.condicion_cultivo) || '';
+  const rindePrevio            = (ultima && ultima.rinde_estimado_qqha) || '';
+  const notasPrevias           = (ultima && ultima.notas) || '';
+  const loteCelda = manual
+    ? `<input type="text" class="f-lote-nombre" placeholder="Lote" value="${escAttr(l.lote||'')}" style="min-width:80px">`
+    : `<strong>${l.lote||'—'}</strong>`;
+  const variedadCelda = manual
+    ? `<input type="text" class="f-lote-variedad" placeholder="Variedad" style="min-width:90px">`
+    : `${l.variedad||'—'}`;
+  return `
+  <tr data-id-lote="${escAttr(l.id_lote)}" data-lote="${escAttr(l.lote||'')}" data-variedad="${escAttr(l.variedad||'')}" data-siembra-previa="${escAttr(siembraPrevia)}" data-manual="${manual?'1':'0'}">
+    <td style="text-align:center"><input type="checkbox" class="f-sembrado" ${sembradoPrevio?'checked':''}></td>
+    <td>${loteCelda}</td>
+    <td>${variedadCelda}</td>
+    <td>
+      <select class="f-siembra">
+        <option value="1ra" ${siembraPrevia==='1ra'?'selected':''}>1ra</option>
+        <option value="2da" ${siembraPrevia==='2da'?'selected':''}>2da</option>
+      </select>
+    </td>
+    <td><input type="date" class="f-fecha-siembra" value="${fechaSiembraPrevia}"></td>
+    <td><input type="date" class="f-fecha-cosecha" value="${fechaCosechaPrevia}"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-cosechado" ${cosechadoPrevio?'checked':''}></td>
+    <td>
+      <select class="f-estado-fenologico">
+        <option value="">—</option>
+        ${ESTADOS_FENOLOGICOS.map(e=>`<option ${e===estadoFenologicoPrevio?'selected':''}>${e}</option>`).join('')}
+      </select>
+    </td>
+    <td><input type="text" class="f-estado-malezas" placeholder="Ej: bajo control" value="${escAttr(estadoMalezasPrevio)}"></td>
+    <td style="text-align:center"><input type="checkbox" class="f-resistentes" ${resistentesPrevio?'checked':''}></td>
+    <td><textarea class="f-plagas" placeholder="Observaciones...">${escAttr(plagasPrevio)}</textarea></td>
+    <td>
+      <select class="f-condicion">
+        <option value="">—</option>
+        ${CONDICIONES_CULTIVO.map(c=>`<option ${c===condicionPrevia?'selected':''}>${c}</option>`).join('')}
+      </select>
+    </td>
+    <td><input type="number" step="0.1" min="0" class="f-rinde" placeholder="qq/ha" value="${escAttr(rindePrevio)}"></td>
+    <td><textarea class="f-notas" placeholder="Notas...">${escAttr(notasPrevias)}</textarea></td>
+    <td>${manual?'<button type="button" class="btn btn-secondary btn-sm" onclick="this.closest(\'tr\').remove()">✕</button>':''}</td>
+  </tr>`;
+}
+
+function renderTablaLotes(lotes) {
+  const tbody = document.getElementById('tabla-body');
+  if (!lotes.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Elegí un productor y un campo para ver sus lotes</td></tr>';
+    return;
+  }
+  tbody.innerHTML = lotes.map(l=>filaLoteHTML(l,false)).join('');
+}
+
+function agregarLoteManual() {
+  const productor = valorProductor();
+  const campo = valorCampo();
+  if (!productor || !campo) { showToast('Elegí primero productor y campo', true); return; }
+  const tbody = document.getElementById('tabla-body');
+  const vacio = tbody.querySelector('.empty-row');
+  if (vacio) vacio.remove();
+  manualLoteSeq++;
+  const idLote = 'MANUAL-' + Date.now() + '-' + manualLoteSeq;
+  tbody.insertAdjacentHTML('beforeend', filaLoteHTML({id_lote: idLote, lote:'', variedad:''}, true));
+}
+
+// ─── MAPA ─────────────────────────────────────────────────
+function addBaseLayers(m) {
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'Imagery © Esri',maxZoom:19}).addTo(m);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    {attribution:'',maxZoom:19,opacity:.8}).addTo(m);
+}
+
+function initMap() {
+  if (map) return;
+  map = L.map('map').setView([-34.5,-63],5);
+  addBaseLayers(map);
+  map.on('click', e => marcarPunto(e.latlng.lat, e.latlng.lng));
+  map.on('zoomend', () => ajustarPinesLote(map, poligonosLotesItems));
+}
+
+function marcarPunto(lat, lng) {
+  puntoVisita = { lat, lng };
+  if (marker) map.removeLayer(marker);
+  marker = L.marker([lat,lng]).addTo(map);
+  const info = document.getElementById('punto-info');
+  info.style.display = 'block';
+  info.innerHTML = `📍 Punto marcado: <strong>${lat.toFixed(5)}°, ${lng.toFixed(5)}°</strong>`;
+}
+
+function usarUbicacionActual() {
+  if (!navigator.geolocation) { showToast('El navegador no soporta geolocalización', true); return; }
+  showToast('Obteniendo posición satelital...');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const { latitude, longitude } = pos.coords;
+      marcarPunto(latitude, longitude);
+      map.setView([latitude, longitude], 16);
+      showToast('Ubicación actual cargada');
+    },
+    err => showToast('No se pudo obtener la ubicación: ' + err.message, true),
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function limpiarPoligonosExistentes() {
+  poligonosLotesItems.forEach(it=>{
+    if (map.hasLayer(it.poly)) map.removeLayer(it.poly);
+    if (map.hasLayer(it.marker)) map.removeLayer(it.marker);
+  });
+  poligonosLotesItems = [];
+}
+
+function dibujarPoligonosExistentes(lotes) {
+  limpiarPoligonosExistentes();
+  if (!lotes.length) return;
+  const bounds = [];
+  lotes.forEach(l=>{
+    if (!l.poligono_geojson) return;
+    let item;
+    try { item = crearItemLotePoligono(l); } catch(e) { return; }
+    poligonosLotesItems.push(item);
+    if (item.bounds.isValid()) bounds.push(item.bounds);
+  });
+  ajustarPinesLote(map, poligonosLotesItems);
+  if (bounds.length) {
+    let total = bounds[0];
+    bounds.slice(1).forEach(b=> total.extend(b));
+    map.fitBounds(total, { maxZoom: 15, padding:[20,20] });
+  }
+}
+
+// ─── FOTOS ────────────────────────────────────────────────
+function handleImgFiles(fileList) {
+  imagenes.push(...Array.from(fileList).filter(f=>f.type.startsWith('image/')));
+  renderImgList();
+}
+
+function handleDropImg(ev) {
+  ev.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag');
+  handleImgFiles(ev.dataTransfer.files);
+}
+
+function renderImgList() {
+  const cont = document.getElementById('img-list');
+  cont.innerHTML = imagenes.map((f,i)=>`
+    <div class="img-thumb">
+      <img src="${URL.createObjectURL(f)}">
+      <button class="rm" onclick="quitarImagen(${i})">✕</button>
+    </div>`).join('');
+}
+
+function quitarImagen(i) {
+  imagenes.splice(i,1);
+  renderImgList();
+}
+
+// ─── GUARDAR VISITA ───────────────────────────────────────
+function sanitizarNombreArchivo(nombre) {
+  return (nombre||'').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'') || 'sd';
+}
+
+function fechaADDMMAAAA(fechaISO) {
+  const [y,m,d] = fechaISO.split('-');
+  return d + m + y;
+}
+
+function fileToBase64(file) {
+  return new Promise((res,rej)=>{
+    const r = new FileReader();
+    r.onload  = ()=>res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+
+async function guardarVisita() {
+  const productor   = valorProductor();
+  const campo       = valorCampo();
+  const fechaVisita = document.getElementById('fecha-visita').value;
+  const tecnico     = valorTecnico();
+
+  if (!productor || !campo) { showToast('Seleccioná productor y campo',true); return; }
+  if (!fechaVisita) { showToast('Indicá la fecha de la visita',true); return; }
+  if (!puntoVisita) { showToast('Marcá el punto de la visita en el mapa',true); return; }
+
+  const filas = [];
+  document.querySelectorAll('#tabla-body tr[data-id-lote]').forEach(tr=>{
+    const get = sel => tr.querySelector(sel);
+    const esManual           = tr.dataset.manual === '1';
+    const loteNombre         = esManual ? (get('.f-lote-nombre').value.trim()) : tr.dataset.lote;
+    const sembrado          = get('.f-sembrado').checked;
+    const fechaSiembra      = get('.f-fecha-siembra').value;
+    const fechaCosecha      = get('.f-fecha-cosecha').value;
+    const estadoFenologico  = get('.f-estado-fenologico').value;
+    const estadoMalezas     = get('.f-estado-malezas').value.trim();
+    const resistentes       = get('.f-resistentes').checked;
+    const plagas            = get('.f-plagas').value.trim();
+    const condicion         = get('.f-condicion').value;
+    const rinde             = get('.f-rinde').value;
+    const cosechado         = get('.f-cosechado').checked;
+    const notas             = get('.f-notas').value.trim();
+    const siembra           = get('.f-siembra').value;
+    const siembraCambio     = siembra !== tr.dataset.siembraPrevia;
+
+    const algoCompletado = sembrado || fechaSiembra || fechaCosecha || estadoFenologico || estadoMalezas ||
+      resistentes || plagas || condicion || rinde || cosechado || notas || siembraCambio || (esManual && loteNombre);
+    if (!algoCompletado) return;
+
+    filas.push({
+      id_lote: tr.dataset.idLote, lote: loteNombre,
+      lote_sembrado: sembrado, fecha_siembra: fechaSiembra, fecha_cosecha_estimada: fechaCosecha,
+      estado_fenologico: estadoFenologico,
+      estado_malezas: estadoMalezas, malezas_resistentes: resistentes,
+      observacion_plagas: plagas, condicion_cultivo: condicion,
+      rinde_estimado_qqha: rinde, lote_cosechado: cosechado ? 'Sí' : 'No', notas, siembra
+    });
+  });
+
+  if (!filas.length && !imagenes.length) { showToast('Completá al menos un dato de algún lote, o subí al menos una foto, antes de guardar',true); return; }
+
+  if (!filas.length) {
+    filas.push({
+      id_lote: '', lote: '',
+      lote_sembrado: false, fecha_siembra: '', fecha_cosecha_estimada: '',
+      estado_fenologico: '', estado_malezas: '', malezas_resistentes: false,
+      observacion_plagas: '', condicion_cultivo: '', rinde_estimado_qqha: '',
+      lote_cosechado: 'No', notas: '', siembra: ''
+    });
+  }
+
+  if (document.getElementById('sel-tecnico').value === OTRO) addExtra('visitas_tecnicos_extra', tecnico);
+  if (document.getElementById('sel-productor').value === OTRO) addExtra('visitas_productores_extra', productor);
+  if (document.getElementById('sel-campo').value === OTRO) addExtraCampo(productor, campo);
+
+  const btn = document.getElementById('btn-guardar');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Guardando...';
+
+  try {
+    const idVisita  = 'VIS-' + Date.now();
+    const tecnicoPrefijo = sanitizarNombreArchivo(tecnico).slice(0,3).toUpperCase() || 'SD';
+    const baseNombre = [tecnicoPrefijo, sanitizarNombreArchivo(productor), sanitizarNombreArchivo(campo), fechaADDMMAAAA(fechaVisita)].join('_');
+    const nombresImagenes = [];
+
+    for (let i = 0; i < imagenes.length; i++) {
+      const file = imagenes[i];
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      const filename = `${baseNombre}_${i+1}.${ext}`;
+      const b64 = await fileToBase64(file);
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        body: JSON.stringify({
+          action:'uploadImagen', filename, folderId: IMG_FOLDER_ID,
+          base64: b64, mimeType: file.type || 'image/jpeg'
+        })
+      });
+      nombresImagenes.push(filename);
+    }
+
+    const fechaCarga = new Date().toISOString();
+    for (const fila of filas) {
+      await fetch(APPS_SCRIPT_URL, {
+        method:'POST',
+        body: JSON.stringify({
+          action:'appendVisita',
+          data: {
+            id_visita: idVisita, fecha_visita: fechaVisita, tecnico, productor,
+            nombre_campo: campo, lat_visita: puntoVisita.lat, lng_visita: puntoVisita.lng,
+            imagenes: nombresImagenes.join(', '), fecha_carga: fechaCarga,
+            ...fila
+          }
+        })
+      });
+    }
+
+    showToast(`Visita guardada: ${filas.length} lote(s) registrados`);
+    resetFormulario();
+  } catch(e) {
+    showToast('Error al guardar la visita: ' + e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function resetFormulario() {
+  construirProductores();
+  construirTecnicos();
+  document.getElementById('sel-productor').value = '';
+  document.getElementById('productor-otro').value = '';
+  document.getElementById('productor-otro').style.display = 'none';
+  document.getElementById('sel-tecnico').value = '';
+  document.getElementById('tecnico-otro').value = '';
+  document.getElementById('tecnico-otro').style.display = 'none';
+  onProductorChange();
+  document.getElementById('fecha-visita').valueAsDate = new Date();
+  puntoVisita = null;
+  if (marker) { map.removeLayer(marker); marker = null; }
+  limpiarPoligonosExistentes();
+  document.getElementById('punto-info').style.display = 'none';
+  imagenes = [];
+  renderImgList();
+}
+
+// ─── TOAST ────────────────────────────────────────────────
+function showToast(msg, error=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = error ? 'show error' : 'show';
+  setTimeout(()=>t.classList.remove('show'), 4000);
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+document.getElementById('fecha-visita').valueAsDate = new Date();
+initMap();
+cargarDatos();
+</script>
+</body>
+</html>
