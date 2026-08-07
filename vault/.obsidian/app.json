@@ -1,0 +1,10 @@
+{
+  "attachmentFolderPath": "99-adjuntos",
+  "newFileLocation": "current",
+  "useMarkdownLinks": true,
+  "newLinkFormat": "relative",
+  "alwaysUpdateLinks": true,
+  "showUnsupportedFiles": false,
+  "showLineNumber": true,
+  "strictLineBreaks": false
+}

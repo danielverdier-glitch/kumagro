@@ -1,0 +1,14 @@
+# Estado local de Obsidian (por máquina, no se comparte)
+vault/.obsidian/workspace.json
+vault/.obsidian/workspace-mobile.json
+vault/.obsidian/graph.json
+vault/.trash/
+.obsidian/plugins/*/data.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.pyc
